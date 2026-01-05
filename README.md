@@ -18,4 +18,4 @@ This project is an Android application designed for book inventory management. I
 - **Inventory Books**: Book inventory layout.
 - **Photo Management**: Photo add/manage layout.
 - **Settings Configuration**: Basic settings layout.
-- **Navigation**: Bottom navigation between Inventory, Photos, and Settings.
+- **Navigation**: Sidebar navigation between Inventory, Photos, and Settings.
