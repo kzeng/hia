@@ -1,7 +1,7 @@
 # HIA - Handheld Inventory Assistant
 # 手持盘点助手
 
-<img src="../proto/logo.png" alt="Prototype" width="90" style="border-radius:12px;" />
+<img src="../proto/logo.png" alt="Prototype" width="90" style="border-radius:15px;" />
 
  ## PROTO
 
