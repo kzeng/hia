@@ -15,7 +15,7 @@
 This project is an Android application designed for book inventory management. It allows users to record the location of books, take photos, and manage photo uploads.
 
 ## FEATURES
-- **Inventory Management**: Book inventory layout.
+- **Inventory Books**: Book inventory layout.
 - **Photo Management**: Photo add/manage layout.
 - **Settings Configuration**: Basic settings layout.
 - **Navigation**: Bottom navigation between Inventory, Photos, and Settings.
