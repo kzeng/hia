@@ -9,6 +9,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,7 +20,18 @@ import androidx.navigation.NavHostController
 
 @Composable
 fun SettingsScreen(navController: NavHostController) {
-    Scaffold(topBar = { TopAppBar(title = { Text("系统设置") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("系统设置") },
+                actions = {
+                    TextButton(onClick = { navController.navigate("inventory") }) { Text("图书盘点") }
+                    TextButton(onClick = { navController.navigate("photos") }) { Text("照片管理") }
+                    TextButton(onClick = { navController.navigate("settings") }) { Text("系统设置") }
+                }
+            )
+        }
+    ) { padding ->
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -63,6 +75,11 @@ private fun FtpConfigCard(modifier: Modifier = Modifier) {
 private fun InfoPanel(modifier: Modifier = Modifier) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.hia.R.drawable.logo),
+                contentDescription = "App Logo",
+                modifier = Modifier.height(80.dp)
+            )
             Text("系统信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("CPU: 8 核 (示例)")
             Text("RAM: 6 GB (示例)")

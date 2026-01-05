@@ -26,28 +26,7 @@ class MainActivity : ComponentActivity() {
             HiaInventoryAppTheme {
                 val navController = rememberNavController()
 
-                val bottomDestinations = listOf(
-                    "inventory" to "盘点",
-                    "photos" to "照片",
-                    "settings" to "设置"
-                )
-
-                Scaffold(
-                    bottomBar = {
-                        val backStackEntry by navController.currentBackStackEntryAsState()
-                        val currentDestination = backStackEntry?.destination?.route
-                        NavigationBar {
-                            bottomDestinations.forEach { (route, label) ->
-                                NavigationBarItem(
-                                    selected = currentDestination == route,
-                                    onClick = { navController.navigate(route) },
-                                    label = { Text(label) },
-                                    icon = {}
-                                )
-                            }
-                        }
-                    }
-                ) { padding ->
+                Scaffold { padding ->
                     NavHost(
                         navController = navController,
                         startDestination = "inventory"

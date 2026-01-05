@@ -58,5 +58,13 @@ dependencies {
     // Material Components (View system) for Theme.Material3 styles
     implementation("com.google.android.material:material:1.12.0")
 
+    // CameraX dependencies
+    val camerax_version = "1.3.2"
+    implementation("androidx.camera:camera-core:${camerax_version}")
+    implementation("androidx.camera:camera-camera2:${camerax_version}")
+    implementation("androidx.camera:camera-lifecycle:${camerax_version}")
+    implementation("androidx.camera:camera-view:${camerax_version}")
+    implementation("androidx.camera:camera-extensions:${camerax_version}")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
