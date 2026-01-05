@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    compileSdk = 33
+    compileSdk = 34
     namespace = "com.example.hia"
 
     defaultConfig {
@@ -29,6 +29,9 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+        )
     }
 
     buildFeatures {
@@ -49,7 +52,11 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.6")
+
+    // Material Components (View system) for Theme.Material3 styles
+    implementation("com.google.android.material:material:1.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
