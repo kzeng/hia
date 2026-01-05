@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">图书盘点应用</string>
+    <string name="inventory_title">图书盘点</string>
+    <string name="photos_title">照片管理</string>
+    <string name="settings_title">系统设置</string>
+    <string name="location_permission_required">需要位置权限以记录位置信息。</string>
+    <string name="camera_permission_required">需要相机权限以拍照。</string>
+    <string name="upload_success">照片上传成功！</string>
+    <string name="upload_failure">照片上传失败，请重试。</string>
+    <string name="no_photos_found">未找到照片，请添加照片。</string>
+    <string name="confirm_exit">确定要退出应用吗？</string>
+    <string name="yes">是</string>
+    <string name="no">否</string>
+</resources>
