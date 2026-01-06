@@ -6,11 +6,11 @@
 
  ## PROTO
 
-![Prototype](./hia-inventory-app/inventory.png)
+![Prototype](./hia-inventory-app/proto/inventory.png)
 
-![Prototype](./hia-inventory-app/photos.png)
+![Prototype](./hia-inventory-app/proto/photos.png)
 
-![Prototype](./hia-inventory-app/system.png)
+![Prototype](./hia-inventory-app/proto/system.png)
 
 ## OVERVIEW
 This project is an Android application designed for book inventory management. It allows users to record the location of books, take photos, and manage photo uploads.
