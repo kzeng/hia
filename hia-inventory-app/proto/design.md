@@ -1191,3 +1191,109 @@ Controls:
 --------------------
 
 用的是 Navigation Compose
+----------------------
+
+你这段代码**很明确**：你用的是 **Navigation Compose（不是自定义路由）**。
+
+判断依据就是这几个点你都具备了：
+
+* `rememberNavController()`
+* `NavHost(...)`
+* `composable("inventory") { ... }` 路由注册
+
+所以你现在 UI 优化会更安全：**逐个 Screen 改 UI 就行，不用动导航结构**。
+
+---
+
+## 你现在要“贴近原型”该怎么做（不推翻功能）
+
+### 1) 先把 Scaffold 的 padding 用起来（你现在没用）
+
+你写了 `Scaffold { padding -> ... }`，但 **padding 没传给内容**，这会导致：
+
+* 内容区域和系统栏/TopAppBar 的间距不一致
+* 更难对齐原型的外边距体系
+
+建议这样改（最小改动）：
+
+```kotlin
+Scaffold { padding ->
+    NavHost(
+        navController = navController,
+        startDestination = "inventory",
+        modifier = Modifier.padding(padding)
+    ) {
+        ...
+    }
+}
+```
+
+> 这不会影响功能，但会让布局更“可控”。
+
+---
+
+### 2) UI 高保真别从 MainActivity 改，从 Screen 内改
+
+你原型差距主要来自：
+
+* spacing（24/16/12）
+* card 圆角/边框/灰阶
+* 右侧浮动导航 rail（宽度 + 选中态）
+* Pad 两栏比例与等高（0.35/0.65 + IntrinsicSize）
+
+这些都应该在 `InventoryScreen/PhotosScreen/SettingsScreen` 里做“换壳不换芯”。
+
+---
+
+### 3) 建议加一个轻量的 Route 常量（防止字符串漂）
+
+不是必须，但能避免后面改名出错：
+
+```kotlin
+object Routes {
+    const val Inventory = "inventory"
+    const val Photos = "photos"
+    const val Settings = "settings"
+}
+```
+
+---
+
+## 给你一套“让 AI 直接改现有代码”的提问方式（针对你这个导航结构）
+
+你之后把 **InventoryScreen.kt**（或对应文件）贴给 ChatGPT5，用这段提示词，它会更倾向输出“补丁”而不是重写：
+
+```text
+我用的是 Navigation Compose（MainActivity 里 NavHost + composable routes）。
+请不要改导航结构，只改当前 Screen 的 UI 层，使其高保真接近原型。
+
+约束：
+- 不改 ViewModel/状态管理/事件回调签名/相机或存储逻辑
+- 只允许改 Modifier、布局容器、Material3 theme tokens、spacing、shapes、colors、组件外观
+- 输出请用 diff/替换块的方式
+
+目标 UI 约束：
+- Pad 横屏 1200x1920（16:10）
+- PagePadding=24dp, CardPadding=16dp, Gap=12dp, Radius=12dp, Outline=1dp
+- InventoryScreen 左右两栏 0.35/0.65 且等高
+- 右侧浮动导航 rail 宽 96dp，选中态 primaryContainer
+- 数值下拉：01-99（两位补零），点位 1-9（不补零），默认不展示展开态
+```
+
+---
+
+## 下一步我怎么帮你最快落地
+
+你现在把下面任意一个贴出来就行（不用全工程）：
+
+1. `InventoryScreen(navController)` 的代码（尤其是 Row/Card/NavRail 那块）
+   或
+2. 你现在右侧导航 rail 的实现代码（如果在 Screen 里画的）
+
+我会按“最小改动”给你：
+
+* 具体该改哪些 Modifier/weight/IntrinsicSize
+* 该抽哪些 Dimens/Theme/IndustrialCard（可选，尽量不动结构）
+* 改完后 UI 会更接近你那张原型图的原因点对点对应
+
+你先贴 `InventoryScreen` 的布局部分吧。
