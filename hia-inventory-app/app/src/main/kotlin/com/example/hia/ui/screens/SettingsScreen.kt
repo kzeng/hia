@@ -12,6 +12,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import com.example.hia.FtpPreferences
 import androidx.compose.ui.platform.LocalContext
 import com.example.hia.SystemInfoProvider
 import kotlinx.coroutines.Dispatchers
+import com.example.hia.ui.components.TopNavBar
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
@@ -35,13 +37,8 @@ fun SettingsScreen(navController: NavHostController) {
     val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("系统设置") },
-                actions = {
-                    TextButton(onClick = { navController.navigate("inventory") }) { Text("图书盘点") }
-                    TextButton(onClick = { navController.navigate("photos") }) { Text("照片管理") }
-                    TextButton(onClick = { navController.navigate("settings") }) { Text("系统设置") }
-                }
+            CenterAlignedTopAppBar(
+                title = { TopNavBar(navController) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }

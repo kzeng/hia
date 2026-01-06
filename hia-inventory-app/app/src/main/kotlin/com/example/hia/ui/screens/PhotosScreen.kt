@@ -44,6 +44,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
+import com.example.hia.ui.components.TopNavBar
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,13 +68,8 @@ fun PhotosScreen(navController: NavHostController) {
     val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("照片管理") },
-                actions = {
-                    TextButton(onClick = { navController.navigate("inventory") }) { Text("图书盘点") }
-                    TextButton(onClick = { navController.navigate("photos") }) { Text("照片管理") }
-                    TextButton(onClick = { navController.navigate("settings") }) { Text("系统设置") }
-                }
+            CenterAlignedTopAppBar(
+                title = { TopNavBar(navController) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }

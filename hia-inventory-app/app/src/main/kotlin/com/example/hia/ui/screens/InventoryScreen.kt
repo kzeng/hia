@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
+import com.example.hia.ui.components.TopNavBar
 import android.util.Log
 import android.widget.Toast
 import java.io.ByteArrayOutputStream
@@ -79,13 +81,8 @@ fun InventoryScreen(navController: NavHostController) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(text = "图书盘点") },
-                actions = {
-                    TextButton(onClick = { navController.navigate("inventory") }) { Text("图书盘点") }
-                    TextButton(onClick = { navController.navigate("photos") }) { Text("照片管理") }
-                    TextButton(onClick = { navController.navigate("settings") }) { Text("系统设置") }
-                }
+            CenterAlignedTopAppBar(
+                title = { TopNavBar(navController) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
