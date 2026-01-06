@@ -2,8 +2,9 @@
 # HIA - Handheld Inventory Assistant
 
 <hr>
+<center>
 <img src="./hia-inventory-app/logo.png" alt="Prototype" width="90" style="border-radius:15px;" />
-
+</center>
  ## PROTO
 
 ![Prototype](./hia-inventory-app/proto/inventory.jpg)
