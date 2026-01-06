@@ -24,6 +24,7 @@ import androidx.navigation.NavHostController
 import com.example.hia.FtpConfig
 import com.example.hia.FtpPreferences
 import androidx.compose.ui.platform.LocalContext
+import com.example.hia.SystemInfo
 import com.example.hia.SystemInfoProvider
 import kotlinx.coroutines.Dispatchers
 import com.example.hia.ui.components.TopNavBar
@@ -65,11 +66,20 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
     val scope = rememberCoroutineScope()
     val savedConfig by remember { FtpPreferences.getConfig(context) }.collectAsState(initial = FtpConfig())
 
-    var server by remember { mutableStateOf(savedConfig.server.ifEmpty { "192.168.10.10" }) }
-    var port by remember { mutableStateOf(savedConfig.port.takeIf { it > 0 }?.toString() ?: "21") }
-    var user by remember { mutableStateOf(savedConfig.user.ifEmpty { "ftpuser" }) }
-    var password by remember { mutableStateOf(savedConfig.password.ifEmpty { "ftpuser" }) }
+    // Local editable state initialized from savedConfig
+    var server by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
+
+    // Initialize local state from savedConfig when it loads/changes
+    LaunchedEffect(savedConfig) {
+        server = savedConfig.server
+        port = savedConfig.port.takeIf { it > 0 }?.toString() ?: ""
+        user = savedConfig.user
+        password = savedConfig.password
+    }
 
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -81,7 +91,7 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = {
-                    val portInt = port.toIntOrNull()
+                    val portInt = port.toIntOrNull() ?: 21
                     val valid = validateFtp(server, portInt, user)
                     scope.launch {
                         if (!valid) {
@@ -90,18 +100,25 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
                                 duration = SnackbarDuration.Short
                             )
                         } else {
-                            FtpPreferences.saveConfig(context, FtpConfig(server, portInt!!, user, password))
-                            saved = true
-                            snackbarHostState.showSnackbar(
-                                message = "配置已保存",
-                                duration = SnackbarDuration.Short
-                            )
+                            try {
+                                FtpPreferences.saveConfig(context, FtpConfig(server, portInt, user, password))
+                                saved = true
+                                snackbarHostState.showSnackbar(
+                                    message = "配置已保存",
+                                    duration = SnackbarDuration.Short
+                                )
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar(
+                                    message = "保存失败: ${e.message}",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
                         }
                     }
                 }) { Text("保存配置") }
 
                 Button(onClick = {
-                    val portInt = port.toIntOrNull()
+                    val portInt = port.toIntOrNull() ?: 21
                     val valid = validateFtp(server, portInt, user)
                     scope.launch {
                         if (!valid) {
@@ -111,7 +128,7 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
                             )
                             return@launch
                         }
-                        val ok = testFtpConnection(server, portInt!!, user, password)
+                        val ok = testFtpConnection(server, portInt, user, password)
                         snackbarHostState.showSnackbar(
                             message = if (ok) "连接成功" else "连接失败",
                             duration = SnackbarDuration.Short
@@ -136,19 +153,32 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
                 modifier = Modifier.height(80.dp)
             )
             val context = LocalContext.current
-            val sys = remember { SystemInfoProvider.get(context) }
+            var sys by remember { mutableStateOf<SystemInfo?>(null) }
+            var loading by remember { mutableStateOf(true) }
+
+            LaunchedEffect(Unit) {
+                sys = withContext(Dispatchers.IO) {
+                    SystemInfoProvider.get(context)
+                }
+                loading = false
+            }
 
             Text("系统信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("CPU：${'$'}{sys.cpu}")
-            Text("RAM：${'$'}{sys.ram}")
-            Text("磁盘：${'$'}{sys.disk}")
-            Text("操作系统：${'$'}{sys.os}")
+            if (loading) {
+                Text("加载中...")
+            } else {
+                val systemInfo = sys ?: SystemInfo("未知", "未知", "未知", "未知")
+                Text("CPU：${systemInfo.cpu}")
+                Text("RAM：${systemInfo.ram}")
+                Text("磁盘：${systemInfo.disk}")
+                Text("操作系统：${systemInfo.os}")
+            }
 
             Spacer(Modifier.height(8.dp))
             Text("APP信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("APP名称：Handheld Inventory Assistant (HIA) 手持盘点助手")
-            Text("版本：1.0")
-            Text("版权：boku@2026")
+            Text("APP名称：手持盘点助手 Handheld Inventory Assistant (HIA)")
+            Text("版本：1.0.0")
+            Text("博库信息技术(武汉)有限公司@2026")
         }
     }
 }

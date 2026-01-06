@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -95,8 +96,8 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
     var folders by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedFolder by remember { mutableStateOf<String?>(null) }
     var images by remember(selectedFolder) { mutableStateOf<List<PhotoItem>>(emptyList()) }
-    var page by remember { mutableStateOf(0) }
-    val pageSize = 24
+            var page by remember { mutableStateOf(0) }
+            val pageSize = 12  // 3x4 = 12
 
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
@@ -135,7 +136,12 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
             onDelete = { name ->
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { deleteFolder(context, name) }
-                    snackbarHostState.showSnackbar(if (ok) "删除成功" else "删除失败或无权限", duration = SnackbarDuration.Short)
+                    val message = if (ok) {
+                        "删除成功"
+                    } else {
+                        "删除失败: 请检查应用是否有文件删除权限，或文件夹是否为空"
+                    }
+                    snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
                     folders = withContext(Dispatchers.IO) { loadDcimDateFolders(context) }
                     if (selectedFolder !in folders) selectedFolder = folders.firstOrNull()
                 }
@@ -198,7 +204,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(Modifier.padding(12.dp)) {
+                Column(Modifier.padding(12.dp).fillMaxHeight()) {
                     if (!hasPermission) {
                         Text("需要存储读取权限才能浏览图片")
                     } else {
@@ -206,7 +212,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                             columns = GridCells.Fixed(4),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().weight(1f)
                         ) {
                             itemsIndexed(pageItems) { idx, item ->
                                 ImageTile(
@@ -216,15 +222,21 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                             }
                         }
                         Spacer(Modifier.height(12.dp))
+                        // 分页导航栏
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${selectedFolder ?: ""} - 共 ${images.size} 张 / 第 ${page + 1} / ${pageCount}")
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(enabled = page > 0, onClick = { page-- }) { Text("上一页") }
-                                OutlinedButton(enabled = page < pageCount - 1, onClick = { page++ }) { Text("下一页") }
+                            Text("${selectedFolder ?: ""} - 共 ${images.size} 张${if (pageCount > 1) " / 第 ${page + 1} / ${pageCount}" else ""}")
+                            if (pageCount > 1) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(enabled = page > 0, onClick = { page-- }) { Text("上一页") }
+                                    OutlinedButton(enabled = page < pageCount - 1, onClick = { page++ }) { Text("下一页") }
+                                }
+                            } else {
+                                // 只有一页，不显示分页按钮，但保留空间
+                                Spacer(Modifier.width(1.dp))
                             }
                         }
                     }
@@ -585,9 +597,13 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
         if (!targetDir.exists()) targetDir.mkdirs()
         val outFile = File(targetDir, destName)
         return try {
-            context.contentResolver.openInputStream(item.uri)?.use { ins ->
-                outFile.outputStream().use { os -> ins.copyTo(os) }
-            } ?: false
+            val ins = context.contentResolver.openInputStream(item.uri) ?: return false
+            ins.use { input ->
+                outFile.outputStream().use { os ->
+                    input.copyTo(os)
+                }
+            }
+            true
         } catch (_: Exception) { false }
     }
 }
@@ -604,36 +620,75 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
 
         val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
         val picRoot = File(dcim, "pic")
-        val files = picRoot.walkTopDown().filter { it.isFile }.toList()
-        val total = files.size
-        var cur = 0
-
-        files.forEach { file ->
-            val relPath = file.relativeTo(picRoot).parent?.replace('\\', '/') ?: ""
-            // Ensure remote directory exists
-            val dirs = relPath.split('/').filter { it.isNotBlank() }
+        
+        // 获取所有文件和目录（包括空目录）
+        val allEntries = mutableListOf<File>()
+        picRoot.walkTopDown().forEach { file ->
+            allEntries.add(file)
+        }
+        
+        // 先创建所有目录结构
+        val dirs = allEntries.filter { it.isDirectory }.sortedBy { it.absolutePath.length }
+        for (dir in dirs) {
+            val relPath = dir.relativeTo(picRoot).toString().replace('\\', '/')
+            if (relPath.isBlank()) continue
+            
+            val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
             var cwd = ""
-            for (d in dirs) {
+            for (d in dirsInPath) {
                 cwd = if (cwd.isBlank()) d else "$cwd/$d"
-                // attempt to change dir, else create
                 if (!client.changeWorkingDirectory(cwd)) {
                     client.makeDirectory(cwd)
                     client.changeWorkingDirectory(cwd)
                 }
             }
-            val remoteName = file.name
-            progress(cur, total, "上传 ${remoteName}")
-            // Incremental: skip if exists
-            val names = client.listNames() ?: emptyArray()
-            val exists = names.any { it == remoteName }
-            if (!exists) {
-                file.inputStream().use { ins -> client.storeFile(remoteName, ins) }
-            }
-            cur++
+            // 返回到根目录
+            client.changeWorkingDirectory("/")
         }
+        
+        // 上传所有文件
+        val files = allEntries.filter { it.isFile }
+        val total = files.size
+        var cur = 0
+        
+        for (file in files) {
+            val parent = file.parentFile
+            val relPath = if (parent != null && parent != picRoot) {
+                parent.relativeTo(picRoot).toString().replace('\\', '/')
+            } else ""
+            val remoteName = file.name
+            
+            // 切换到对应目录
+            if (relPath.isNotBlank()) {
+                val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
+                var cwd = ""
+                for (d in dirsInPath) {
+                    cwd = if (cwd.isBlank()) d else "$cwd/$d"
+                    if (!client.changeWorkingDirectory(cwd)) {
+                        client.makeDirectory(cwd)
+                        client.changeWorkingDirectory(cwd)
+                    }
+                }
+            } else {
+                client.changeWorkingDirectory("/")
+            }
+            
+            progress(cur, total, "上传 ${if (relPath.isNotBlank()) "$relPath/" else ""}$remoteName")
+            
+            // 上传文件（覆盖已存在的文件）
+            file.inputStream().use { ins -> 
+                client.storeFile(remoteName, ins) 
+            }
+            
+            cur++
+            // 返回到根目录，为下一个文件准备
+            client.changeWorkingDirectory("/")
+        }
+        
         client.logout(); client.disconnect()
         true
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e("FTP", "Upload failed", e)
         try { client.disconnect() } catch (_: Exception) {}
         false
     }
@@ -642,26 +697,108 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
 private fun deleteFolder(context: android.content.Context, folder: String): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val resolver = context.contentResolver
-        val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        // Try multiple URIs - the file might be in different volumes
+        val uris = listOf(
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        ).distinct()
+        
         val where = "${MediaStore.MediaColumns.RELATIVE_PATH}=?"
         val args = arrayOf("${Environment.DIRECTORY_DCIM}/$folder/")
+        
         try {
-            resolver.delete(uri, where, args)
+            var totalDeleted = 0
+            var hadFiles = false
+            
+            for (uri in uris) {
+                // First check if folder has any files in this URI
+                val projection = arrayOf(MediaStore.Images.Media._ID)
+                val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
+                    cursor.moveToFirst() // Returns true if there's at least one file
+                } ?: false
+                
+                if (hasFiles) {
+                    hadFiles = true
+                    // Try to delete files
+                    val deletedCount = resolver.delete(uri, where, args)
+                    Log.i("Photos", "Deleted $deletedCount files from folder $folder in URI $uri")
+                    if (deletedCount > 0) {
+                        totalDeleted += deletedCount
+                    }
+                }
+            }
+            
+            if (!hadFiles) {
+                Log.i("Photos", "Folder $folder has no files or doesn't exist")
+                return true // Folder is empty or doesn't exist
+            }
+            
+            // Check if any files remain
+            var stillHasFiles = false
+            for (uri in uris) {
+                val projection = arrayOf(MediaStore.Images.Media._ID)
+                val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
+                    cursor.moveToFirst()
+                } ?: false
+                if (hasFiles) {
+                    stillHasFiles = true
+                    Log.w("Photos", "Folder $folder still has files in URI $uri after deletion attempt")
+                    break
+                }
+            }
+            
+            if (stillHasFiles) {
+                Log.w("Photos", "Folder $folder still has files after deletion attempt")
+                return false
+            }
+            
+            Log.i("Photos", "Successfully deleted folder $folder, total files deleted: $totalDeleted")
             true
         } catch (e: SecurityException) {
             Log.e("Photos", "Delete requires user consent", e)
             false
         } catch (e: Exception) {
+            Log.e("Photos", "Failed to delete folder $folder", e)
             false
         }
     } else {
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), folder)
         try {
-            if (!dir.exists()) return true
-            dir.listFiles()?.forEach { it.delete() }
-            dir.delete()
-            true
-        } catch (_: Exception) { false }
+            if (!dir.exists()) {
+                Log.i("Photos", "Folder $folder doesn't exist")
+                return true
+            }
+            
+            val files = dir.listFiles()
+            if (files.isNullOrEmpty()) {
+                Log.i("Photos", "Folder $folder is empty")
+                // Empty directory, just delete it
+                return dir.delete()
+            }
+            
+            var allFilesDeleted = true
+            files.forEach { file ->
+                if (!file.delete()) {
+                    Log.w("Photos", "Failed to delete file ${file.name}")
+                    allFilesDeleted = false
+                }
+            }
+            
+            if (!allFilesDeleted) {
+                Log.w("Photos", "Not all files in folder $folder were deleted")
+                return false
+            }
+            
+            val dirDeleted = dir.delete()
+            if (!dirDeleted) {
+                Log.w("Photos", "Failed to delete directory $folder, might not be empty")
+            }
+            dirDeleted
+        } catch (e: Exception) {
+            Log.e("Photos", "Failed to delete folder $folder", e)
+            false
+        }
     }
 }
 
@@ -697,6 +834,7 @@ private fun FolderRow(
     onUpload: (String) -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Card(colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
@@ -717,11 +855,39 @@ private fun FolderRow(
             Text(name, style = MaterialTheme.typography.bodyLarge)
             Box {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("删除文件夹") }, onClick = { menuOpen = false; onDelete(name) })
+                    DropdownMenuItem(text = { Text("删除文件夹") }, onClick = { 
+                        menuOpen = false
+                        showDeleteConfirm = true
+                    })
                     DropdownMenuItem(text = { Text("上传文件夹") }, onClick = { menuOpen = false; onUpload(name) })
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除文件夹 '$name' 吗？此操作不可恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete(name)
+                    }
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirm = false }
+                ) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

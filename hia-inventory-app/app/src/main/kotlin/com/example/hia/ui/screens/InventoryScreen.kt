@@ -58,6 +58,7 @@ import androidx.navigation.NavHostController
 import com.example.hia.ui.components.TopNavBar
 import android.util.Log
 import android.widget.Toast
+import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -96,7 +97,7 @@ fun InventoryScreen(navController: NavHostController) {
         ) {
             LocationPanel(
                 modifier = Modifier
-                    .weight(0.4f)
+                    .weight(0.35f)
                     .fillMaxHeight(),
                 floor = floor,
                 area = area,
@@ -114,7 +115,7 @@ fun InventoryScreen(navController: NavHostController) {
 
             CameraPanel(
                 modifier = Modifier
-                    .weight(0.6f)
+                    .weight(0.65f)
                     .fillMaxHeight(),
                 floor = floor,
                 area = area,
@@ -146,8 +147,7 @@ private fun LocationPanel(
 ) {
     val codePart = "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
     val filenamePreview = remember(codePart) {
-        val ts = System.currentTimeMillis()
-        "$codePart-$ts.png"
+        "$codePart-<timestamp>.png"
     }
 
     Card(
@@ -298,16 +298,14 @@ private fun CameraPanel(
                                             coroutineScope.launch {
                                                 snackbarHostState.showSnackbar(
                                                     message = "照片已保存",
-                                                    withDismissAction = true,
-                                                    duration = SnackbarDuration.Short
+                                                    withDismissAction = true
                                                 )
                                             }
                                         } else {
                                             coroutineScope.launch {
                                                 snackbarHostState.showSnackbar(
                                                     message = "保存失败",
-                                                    withDismissAction = true,
-                                                    duration = SnackbarDuration.Short
+                                                    withDismissAction = true
                                                 )
                                             }
                                         }
@@ -320,8 +318,7 @@ private fun CameraPanel(
                                     coroutineScope.launch {
                                         snackbarHostState.showSnackbar(
                                             message = "拍摄失败",
-                                            withDismissAction = true,
-                                            duration = SnackbarDuration.Short
+                                            withDismissAction = true
                                         )
                                     }
                                 }
