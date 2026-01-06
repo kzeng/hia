@@ -23,6 +23,7 @@ import androidx.navigation.NavHostController
 import com.example.hia.FtpConfig
 import com.example.hia.FtpPreferences
 import androidx.compose.ui.platform.LocalContext
+import com.example.hia.SystemInfoProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,9 +138,14 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
                 contentDescription = "App Logo",
                 modifier = Modifier.height(80.dp)
             )
+            val context = LocalContext.current
+            val sys = remember { SystemInfoProvider.get(context) }
+
             Text("系统信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("CPU: 8 核 (示例)")
-            Text("RAM: 6 GB (示例)")
+            Text("CPU：${'$'}{sys.cpu}")
+            Text("RAM：${'$'}{sys.ram}")
+            Text("磁盘：${'$'}{sys.disk}")
+            Text("操作系统：${'$'}{sys.os}")
 
             Spacer(Modifier.height(8.dp))
             Text("APP信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
