@@ -7,6 +7,12 @@
 
 ## 系统设置
 - *ftp 配置下方新增一个测试连接的按钮。
+- 系统信息 
+  CPU：
+  RAM:
+  Disk: used/total
+  操作系统：
+
 
 
 # Featues
