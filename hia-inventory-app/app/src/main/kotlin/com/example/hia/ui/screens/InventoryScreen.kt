@@ -1,33 +1,77 @@
 package com.example.hia.ui.screens
 
+import android.Manifest
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.net.Uri
+import java.io.IOException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material3.Icon
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
+import android.util.Log
+import android.widget.Toast
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 @Composable
 fun InventoryScreen(navController: NavHostController) {
+    var floor by remember { mutableStateOf(1) }
+    var area by remember { mutableStateOf(1) }
+    var shelf by remember { mutableStateOf(1) }
+    var face by remember { mutableStateOf(1) }
+    var column by remember { mutableStateOf(1) }
+    var point by remember { mutableStateOf(1) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,37 +91,60 @@ fun InventoryScreen(navController: NavHostController) {
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 左侧：位置记录
             LocationPanel(
                 modifier = Modifier
                     .weight(0.4f)
-                    .fillMaxHeight()
+                    .fillMaxHeight(),
+                floor = floor,
+                area = area,
+                shelf = shelf,
+                face = face,
+                column = column,
+                point = point,
+                onFloorChange = { floor = it },
+                onAreaChange = { area = it },
+                onShelfChange = { shelf = it },
+                onFaceChange = { face = it },
+                onColumnChange = { column = it },
+                onPointChange = { point = it }
             )
 
-            // 右侧：摄像预览 + 拍摄按钮
             CameraPanel(
                 modifier = Modifier
                     .weight(0.6f)
-                    .fillMaxHeight()
+                    .fillMaxHeight(),
+                floor = floor,
+                area = area,
+                shelf = shelf,
+                face = face,
+                column = column,
+                point = point
             )
         }
     }
 }
 
 @Composable
-private fun LocationPanel(modifier: Modifier = Modifier) {
-    var floor by remember { mutableStateOf(1) }      // 01-99
-    var area by remember { mutableStateOf(1) }       // 01-99
-    var shelf by remember { mutableStateOf(1) }      // 01-99
-    var face by remember { mutableStateOf(1) }       // 01-99 (正反面号)
-    var column by remember { mutableStateOf(1) }     // 01-99 (列号)
-    var point by remember { mutableStateOf(1) }      // 1-9  (点位号)
-
-    val codePart = remember(floor, area, shelf, face, column, point) {
-        "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
+private fun LocationPanel(
+    modifier: Modifier = Modifier,
+    floor: Int,
+    area: Int,
+    shelf: Int,
+    face: Int,
+    column: Int,
+    point: Int,
+    onFloorChange: (Int) -> Unit,
+    onAreaChange: (Int) -> Unit,
+    onShelfChange: (Int) -> Unit,
+    onFaceChange: (Int) -> Unit,
+    onColumnChange: (Int) -> Unit,
+    onPointChange: (Int) -> Unit
+) {
+    val codePart = "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
+    val filenamePreview = remember(codePart) {
+        val ts = System.currentTimeMillis()
+        "$codePart-$ts.png"
     }
-    val timestamp = remember { System.currentTimeMillis().toString() }
-    val filename = remember(codePart, timestamp) { "$codePart-$timestamp.png" }
 
     Card(
         modifier = modifier,
@@ -91,24 +158,24 @@ private fun LocationPanel(modifier: Modifier = Modifier) {
             Text("拍照地点信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NumberStepper(label = "楼层", value = floor, onValueChange = { floor = it }, range = 1..99)
-                NumberStepper(label = "区域", value = area, onValueChange = { area = it }, range = 1..99)
+                NumberStepper("楼层", floor, onFloorChange, 1..99)
+                NumberStepper("区域", area, onAreaChange, 1..99)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NumberStepper(label = "架号", value = shelf, onValueChange = { shelf = it }, range = 1..99)
-                NumberStepper(label = "正反面号", value = face, onValueChange = { face = it }, range = 1..99)
+                NumberStepper("架号", shelf, onShelfChange, 1..99)
+                NumberStepper("正反面号", face, onFaceChange, 1..99)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NumberStepper(label = "列号", value = column, onValueChange = { column = it }, range = 1..99)
-                NumberStepper(label = "点位号", value = point, onValueChange = { point = it }, range = 1..9, padTwoDigits = false)
+                NumberStepper("列号", column, onColumnChange, 1..99)
+                NumberStepper("点位号", point, onPointChange, 1..9, padTwoDigits = false)
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(12.dp)) {
                     Text("文件命名预览", style = MaterialTheme.typography.labelLarge)
-                    Text(filename, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text(filenamePreview, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -116,31 +183,123 @@ private fun LocationPanel(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CameraPanel(modifier: Modifier = Modifier) {
+private fun CameraPanel(
+    modifier: Modifier = Modifier,
+    floor: Int,
+    area: Int,
+    shelf: Int,
+    face: Int,
+    column: Int,
+    point: Int
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var lastCaptured by remember { mutableStateOf<String?>(null) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+
+    var cameraGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> cameraGranted = granted }
+
+    var writeGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT < 29)
+                ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            else true
+        )
+    }
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> writeGranted = granted }
+
+    LaunchedEffect(Unit) {
+        if (!cameraGranted) cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        if (Build.VERSION.SDK_INT < 29 && !writeGranted) {
+            writePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(8.dp)),
+                    .background(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                        RoundedCornerShape(8.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("摄像预览（后置）", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
+                    },
+                    update = { previewView ->
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+                            val selector = CameraSelector.DEFAULT_BACK_CAMERA
+                            val capture = ImageCapture.Builder()
+                                .setTargetRotation(previewView.display.rotation)
+                                .build()
+                            imageCapture = capture
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+                            } catch (_: Exception) {
+                            }
+                        }, ContextCompat.getMainExecutor(context))
+                    }
+                )
 
-                // 圆形拍摄按钮，悬浮在预览窗口底部
                 FloatingActionButton(
                     onClick = {
-                        val now = System.currentTimeMillis()
-                        lastCaptured = "01020301041-$now.png"
+                        if (!cameraGranted || !writeGranted) return@FloatingActionButton
+                        val codePart = "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
+                        val ts = System.currentTimeMillis().toString()
+                        val filename = "$codePart-$ts.png"
+                        val capture = imageCapture ?: return@FloatingActionButton
+                        capture.takePicture(
+                            cameraExecutor,
+                            object : ImageCapture.OnImageCapturedCallback() {
+                                override fun onCaptureSuccess(image: ImageProxy) {
+                                    val bmp = imageProxyToBitmap(image)
+                                    image.close()
+                                    if (bmp != null) {
+                                        val ok = saveBitmapToDcimDateFolder(context, bmp, filename)
+                                        lastCaptured = if (ok) filename else lastCaptured
+                                        val msg = if (ok) "已保存: $filename" else "保存失败"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        if (!ok) Log.e("Inventory", "Failed to save $filename")
+                                    }
+                                }
+
+                                override fun onError(exception: ImageCaptureException) {
+                                    Log.e("Inventory", "Capture error", exception)
+                                    Toast.makeText(context, "拍摄失败", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
                     },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -149,12 +308,12 @@ private fun CameraPanel(modifier: Modifier = Modifier) {
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 24.dp)
                 ) {
-                    Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = "拍摄", modifier = Modifier.size(40.dp))
+                    Icon(Icons.Filled.CameraAlt, contentDescription = "拍摄", modifier = Modifier.size(40.dp))
                 }
             }
 
             if (lastCaptured != null) {
-                Text("最近拍摄：${lastCaptured}", style = MaterialTheme.typography.bodyMedium)
+                Text("最近拍摄：$lastCaptured", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -168,21 +327,135 @@ private fun NumberStepper(
     range: IntRange,
     padTwoDigits: Boolean = true
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { if (value > range.first) onValueChange(value - 1) }) {
                     Icon(painterResource(android.R.drawable.ic_media_previous), contentDescription = "-1")
                 }
-                Text(text = if (padTwoDigits) "%02d".format(value) else value.toString(), fontSize = 22.sp, modifier = Modifier.width(56.dp),
-                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (padTwoDigits) "%02d".format(value) else value.toString(),
+                    fontSize = 22.sp,
+                    modifier = Modifier.width(56.dp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
                 IconButton(onClick = { if (value < range.last) onValueChange(value + 1) }) {
                     Icon(painterResource(android.R.drawable.ic_media_next), contentDescription = "+1")
                 }
             }
         }
+    }
+}
+
+private fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
+    return try {
+        when (image.format) {
+            ImageFormat.JPEG -> {
+                val buffer = image.planes[0].buffer
+                buffer.rewind()
+                val bytes = ByteArray(buffer.remaining())
+                buffer.get(bytes)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+            ImageFormat.YUV_420_888 -> {
+                val yBuffer = image.planes[0].buffer
+                val uBuffer = image.planes[1].buffer
+                val vBuffer = image.planes[2].buffer
+
+                val ySize = yBuffer.remaining()
+                val uSize = uBuffer.remaining()
+                val vSize = vBuffer.remaining()
+
+                val nv21 = ByteArray(ySize + uSize + vSize)
+                yBuffer.get(nv21, 0, ySize)
+                vBuffer.get(nv21, ySize, vSize)
+                uBuffer.get(nv21, ySize + vSize, uSize)
+
+                val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+                val out = ByteArrayOutputStream()
+                yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 100, out)
+                val jpegBytes = out.toByteArray()
+                BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+            }
+            else -> {
+                // Fallback: try treating as NV21
+                val yBuffer = image.planes[0].buffer
+                val uBuffer = image.planes[1].buffer
+                val vBuffer = image.planes[2].buffer
+
+                val ySize = yBuffer.remaining()
+                val uSize = uBuffer.remaining()
+                val vSize = vBuffer.remaining()
+
+                val nv21 = ByteArray(ySize + uSize + vSize)
+                yBuffer.get(nv21, 0, ySize)
+                vBuffer.get(nv21, ySize, vSize)
+                uBuffer.get(nv21, ySize + vSize, uSize)
+
+                val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+                val out = ByteArrayOutputStream()
+                yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 100, out)
+                val jpegBytes = out.toByteArray()
+                BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun saveBitmapToDcimDateFolder(context: Context, bitmap: Bitmap, filename: String): Boolean {
+    val dateFolder = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+    val resolver = context.contentResolver
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val relativePath = Environment.DIRECTORY_DCIM + "/" + dateFolder + "/"
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
+            put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis() / 1000)
+            put(MediaStore.MediaColumns.DATE_MODIFIED, System.currentTimeMillis() / 1000)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val tryInsertAndWrite: (Uri) -> Boolean = { baseUri: Uri ->
+            try {
+                resolver.insert(baseUri, values)?.let { uri ->
+                    resolver.openOutputStream(uri)?.use { os: OutputStream ->
+                        val ok = bitmap.compress(Bitmap.CompressFormat.PNG, 100, os)
+                        if (!ok) throw IOException("PNG compress failed")
+                    } ?: throw IOException("openOutputStream returned null")
+                    ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
+                        .also { resolver.update(uri, it, null, null) }
+                    Log.i("Inventory", "Saved $filename to $uri (relativePath=$relativePath)")
+                    true
+                } ?: false
+            } catch (e: Exception) {
+                Log.e("Inventory", "Save PNG failed via $baseUri", e)
+                false
+            }
+        }
+        val primaryUri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        if (tryInsertAndWrite(primaryUri)) return true
+        val externalUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        return tryInsertAndWrite(externalUri)
+    } else {
+        val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+        val targetDir = File(dcimDir, dateFolder)
+        if (!targetDir.exists()) targetDir.mkdirs()
+        val outFile = File(targetDir, filename)
+        FileOutputStream(outFile).use { fos ->
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)) return false
+        }
+        MediaScannerConnection.scanFile(
+            context,
+            arrayOf(outFile.absolutePath),
+            arrayOf("image/png"),
+            null
+        )
+        return true
     }
 }
