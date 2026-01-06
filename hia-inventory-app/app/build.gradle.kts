@@ -58,6 +58,9 @@ dependencies {
     // Material Components (View system) for Theme.Material3 styles
     implementation("com.google.android.material:material:1.12.0")
 
+    // Compose Foundation (pager, grids, gestures)
+    implementation("androidx.compose.foundation:foundation")
+
     // CameraX dependencies
     val camerax_version = "1.3.2"
     implementation("androidx.camera:camera-core:${camerax_version}")
@@ -65,6 +68,15 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:${camerax_version}")
     implementation("androidx.camera:camera-view:${camerax_version}")
     implementation("androidx.camera:camera-extensions:${camerax_version}")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.4.0")
+
+    // Preferences DataStore for persisting settings
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // FTP client for connectivity testing
+    implementation("commons-net:commons-net:3.9.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

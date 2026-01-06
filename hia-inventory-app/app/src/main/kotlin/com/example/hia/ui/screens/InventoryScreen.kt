@@ -36,6 +36,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -72,6 +75,8 @@ fun InventoryScreen(navController: NavHostController) {
     var column by remember { mutableStateOf(1) }
     var point by remember { mutableStateOf(1) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -82,7 +87,8 @@ fun InventoryScreen(navController: NavHostController) {
                     TextButton(onClick = { navController.navigate("settings") }) { Text("系统设置") }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Row(
             modifier = Modifier
@@ -118,7 +124,8 @@ fun InventoryScreen(navController: NavHostController) {
                 shelf = shelf,
                 face = face,
                 column = column,
-                point = point
+                point = point,
+                snackbarHostState = snackbarHostState
             )
         }
     }
@@ -190,13 +197,15 @@ private fun CameraPanel(
     shelf: Int,
     face: Int,
     column: Int,
-    point: Int
+    point: Int,
+    snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var lastCaptured by remember { mutableStateOf<String?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+    val coroutineScope = rememberCoroutineScope()
 
     var cameraGranted by remember {
         mutableStateOf(
@@ -288,15 +297,36 @@ private fun CameraPanel(
                                     if (bmp != null) {
                                         val ok = saveBitmapToDcimDateFolder(context, bmp, filename)
                                         lastCaptured = if (ok) filename else lastCaptured
-                                        val msg = if (ok) "已保存: $filename" else "保存失败"
-                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        if (ok) {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = "照片已保存",
+                                                    withDismissAction = true,
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        } else {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = "保存失败",
+                                                    withDismissAction = true,
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        }
                                         if (!ok) Log.e("Inventory", "Failed to save $filename")
                                     }
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
                                     Log.e("Inventory", "Capture error", exception)
-                                    Toast.makeText(context, "拍摄失败", Toast.LENGTH_SHORT).show()
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = "拍摄失败",
+                                            withDismissAction = true,
+                                            duration = SnackbarDuration.Short
+                                        )
+                                    }
                                 }
                             }
                         )
