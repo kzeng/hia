@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.app.Activity
+import androidx.activity.result.IntentSenderRequest
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -106,6 +108,18 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
         }
     }
 
+    // Launcher for MediaStore delete consent (Android 10+)
+    val deleteConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        scope.launch {
+            val ok = result.resultCode == Activity.RESULT_OK
+            snackbarHostState.showSnackbar(if (ok) "删除完成" else "已取消或失败", duration = SnackbarDuration.Short)
+            folders = withContext(Dispatchers.IO) { loadDcimDateFolders(context) }
+            if (selectedFolder !in folders) selectedFolder = folders.firstOrNull()
+        }
+    }
+
     LaunchedEffect(selectedFolder) {
         page = 0
         selectedFolder?.let { folder ->
@@ -136,11 +150,16 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
             onDelete = { name ->
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { deleteFolder(context, name) }
-                    val message = if (ok) {
-                        "删除成功"
-                    } else {
-                        "删除失败: 请检查应用是否有文件删除权限，或文件夹是否为空"
+                    if (!ok && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Try consent-based delete for media not owned by this app
+                        val uris = withContext(Dispatchers.IO) { collectMediaUrisInFolder(context, name) }
+                        if (uris.isNotEmpty()) {
+                            val intentSender = MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender
+                            deleteConsentLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                            return@launch
+                        }
                     }
+                    val message = if (ok) "删除成功" else "删除失败: 请检查应用是否有文件删除权限，或文件夹是否为空"
                     snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
                     folders = withContext(Dispatchers.IO) { loadDcimDateFolders(context) }
                     if (selectedFolder !in folders) selectedFolder = folders.firstOrNull()
@@ -697,21 +716,29 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
 private fun deleteFolder(context: android.content.Context, folder: String): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val resolver = context.contentResolver
-        // Try multiple URIs - the file might be in different volumes
-        val uris = listOf(
+        // Images tables
+        val imageUris = listOf(
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         ).distinct()
-        
-        val where = "${MediaStore.MediaColumns.RELATIVE_PATH}=?"
-        val args = arrayOf("${Environment.DIRECTORY_DCIM}/$folder/")
+        // Videos tables (folder可能存在视频)
+        val videoUris = listOf(
+            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
+            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        ).distinct()
+
+        // Use LIKE to include subdirectories and both with/without trailing slash
+        val where = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val base = "${Environment.DIRECTORY_DCIM}/$folder"
+        val args = arrayOf("$base/%", "$base/")
         
         try {
             var totalDeleted = 0
             var hadFiles = false
             
-            for (uri in uris) {
+            for (uri in imageUris) {
                 // First check if folder has any files in this URI
                 val projection = arrayOf(MediaStore.Images.Media._ID)
                 val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
@@ -728,6 +755,19 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
                     }
                 }
             }
+            // Also delete videos in the same folder
+            for (uri in videoUris) {
+                val projection = arrayOf(MediaStore.Video.Media._ID)
+                val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
+                    cursor.moveToFirst()
+                } ?: false
+                if (hasFiles) {
+                    hadFiles = true
+                    val deletedCount = resolver.delete(uri, where, args)
+                    Log.i("Photos", "Deleted $deletedCount videos from folder $folder in URI $uri")
+                    if (deletedCount > 0) totalDeleted += deletedCount
+                }
+            }
             
             if (!hadFiles) {
                 Log.i("Photos", "Folder $folder has no files or doesn't exist")
@@ -736,7 +776,7 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
             
             // Check if any files remain
             var stillHasFiles = false
-            for (uri in uris) {
+            for (uri in imageUris) {
                 val projection = arrayOf(MediaStore.Images.Media._ID)
                 val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
                     cursor.moveToFirst()
@@ -745,6 +785,19 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
                     stillHasFiles = true
                     Log.w("Photos", "Folder $folder still has files in URI $uri after deletion attempt")
                     break
+                }
+            }
+            if (!stillHasFiles) {
+                for (uri in videoUris) {
+                    val projection = arrayOf(MediaStore.Video.Media._ID)
+                    val hasFiles = resolver.query(uri, projection, where, args, null)?.use { cursor ->
+                        cursor.moveToFirst()
+                    } ?: false
+                    if (hasFiles) {
+                        stillHasFiles = true
+                        Log.w("Photos", "Folder $folder still has videos in URI $uri after deletion attempt")
+                        break
+                    }
                 }
             }
             
@@ -800,6 +853,52 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
             false
         }
     }
+}
+
+/**
+ * 收集 DCIM/<folder> 下所有图片/视频的 Uri，用于在 Q+ 通过 MediaStore.createDeleteRequest 请求用户授权删除。
+ */
+private fun collectMediaUrisInFolder(context: android.content.Context, folder: String): List<Uri> {
+    val resolver = context.contentResolver
+    val base = "${Environment.DIRECTORY_DCIM}/$folder"
+    val where = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+    val args = arrayOf("$base/%", "$base/")
+    val result = mutableListOf<Uri>()
+
+    // Images
+    val imageUris = listOf(
+        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
+        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    ).distinct()
+    val imageProj = arrayOf(MediaStore.Images.Media._ID)
+    for (table in imageUris) {
+        resolver.query(table, imageProj, where, args, null)?.use { c ->
+            val idIdx = c.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            while (c.moveToNext()) {
+                val id = c.getLong(idIdx)
+                result += ContentUris.withAppendedId(table, id)
+            }
+        }
+    }
+
+    // Videos
+    val videoUris = listOf(
+        MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
+        MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+        MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    ).distinct()
+    val videoProj = arrayOf(MediaStore.Video.Media._ID)
+    for (table in videoUris) {
+        resolver.query(table, videoProj, where, args, null)?.use { c ->
+            val idIdx = c.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+            while (c.moveToNext()) {
+                val id = c.getLong(idIdx)
+                result += ContentUris.withAppendedId(table, id)
+            }
+        }
+    }
+    return result
 }
 
 @Composable
