@@ -12,7 +12,10 @@ android {
         minSdk = 23
         targetSdk = 33
         versionCode = 1
-        versionName = "1.0"
+
+        //kzeng changed to 1.0.1
+        // versionName = "1.0"
+        versionName = "1.0.1"
     }
 
     buildTypes {
@@ -79,4 +82,14 @@ dependencies {
     implementation("commons-net:commons-net:3.9.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+
+//kzeng added to rename debug apk
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("boku-hia.apk")
+        }
+    }
 }
