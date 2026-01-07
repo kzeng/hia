@@ -87,7 +87,21 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
 
 
 # Optimize
+拍照速度优化：
+可以明显提速，关键是避免“YUV→Bitmap→PNG”的双重编码，并让 CameraX 直接把照片写进 MediaStore（JPEG）。另外启用最小延迟模式、适当降低分辨率也会加速对焦/曝光等待与写盘。
 
+建议改动（主打速度的方案）
+
+用 ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY。
+通过 OutputFileOptions 直接保存 JPEG 到 MediaStore（无需手动转 Bitmap/PNG）。
+可选：设定 4:3 目标比例，jpegQuality≈85，进一步提升速度/体积平衡。
+
+说明
+
+现在不再走 imageProxyToBitmap 与 saveBitmapToDcimDateFolder，CPU/IO 大幅减少，通常可把总时延压到 1 秒内（视设备而定）。
+最小延迟模式会减少等待 AF/AE 完全收敛的时间，拍摄响应更快；如需更稳的曝光/对焦，可改回 MAXIMIZE_QUALITY。
+若必须严格使用 .png 后缀，请确认是否允许改为 .jpg；PNG 是无损压缩，编码很慢。若必须 PNG，建议：降低目标分辨率（例如 setTargetResolution 1280×960），或拍完后台异步转 PNG，但拍摄当下仍会慢。
+需要我同步把 Photos/命名解析/上传逻辑兼容 .jpg 吗？如果必须保留 .png 后缀，请确认，我再给出保留 .png 的优化版（以降分辨率为主）。
 
 
 # ISSUES
