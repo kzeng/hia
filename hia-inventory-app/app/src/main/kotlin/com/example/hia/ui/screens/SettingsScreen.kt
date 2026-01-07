@@ -1,10 +1,16 @@
 package com.example.hia.ui.screens
 
+import android.content.Context
+import android.graphics.ImageFormat
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.util.Size
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -17,9 +23,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Link
 import androidx.navigation.NavHostController
 import com.example.hia.FtpConfig
 import com.example.hia.FtpPreferences
@@ -32,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
+import kotlin.math.sqrt
 
 @Composable
 fun SettingsScreen(navController: NavHostController) {
@@ -52,10 +65,10 @@ fun SettingsScreen(navController: NavHostController) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 左侧：FTP 配置
-            FtpConfigCard(modifier = Modifier.weight(0.45f), snackbarHostState = snackbarHostState)
+            FtpConfigCard(modifier = Modifier.weight(0.4f), snackbarHostState = snackbarHostState)
 
             // 右侧：系统/APP 信息
-            InfoPanel(modifier = Modifier.weight(0.55f))
+            InfoPanel(modifier = Modifier.weight(0.6f))
         }
     }
 }
@@ -115,7 +128,11 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
                             }
                         }
                     }
-                }) { Text("保存配置") }
+                }) {
+                    Icon(imageVector = Icons.Filled.Save, contentDescription = "保存配置")
+                    Spacer(Modifier.width(8.dp))
+                    Text("保存配置")
+                }
 
                 Button(onClick = {
                     val portInt = port.toIntOrNull() ?: 21
@@ -134,7 +151,11 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
                             duration = SnackbarDuration.Short
                         )
                     }
-                }) { Text("测试连接") }
+                }) {
+                    Icon(imageVector = Icons.Filled.Link, contentDescription = "测试连接")
+                    Spacer(Modifier.width(8.dp))
+                    Text("测试连接")
+                }
             }
             if (saved) {
                 Text("已保存：$server:$port / $user", style = MaterialTheme.typography.bodySmall)
@@ -150,17 +171,27 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
             androidx.compose.foundation.Image(
                 painter = androidx.compose.ui.res.painterResource(id = com.example.hia.R.drawable.logo),
                 contentDescription = "App Logo",
-                modifier = Modifier.height(80.dp)
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
             )
             val context = LocalContext.current
             var sys by remember { mutableStateOf<SystemInfo?>(null) }
             var loading by remember { mutableStateOf(true) }
+            var media by remember { mutableStateOf<MediaInfo?>(null) }
+            var mediaLoading by remember { mutableStateOf(true) }
 
             LaunchedEffect(Unit) {
                 sys = withContext(Dispatchers.IO) {
                     SystemInfoProvider.get(context)
                 }
                 loading = false
+
+                media = withContext(Dispatchers.IO) {
+                    loadMediaInfo(context)
+                }
+                mediaLoading = false
             }
 
             Text("系统信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -171,7 +202,18 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
                 Text("CPU：${systemInfo.cpu}")
                 Text("RAM：${systemInfo.ram}")
                 Text("磁盘：${systemInfo.disk}")
-                Text("操作系统：${systemInfo.os}")
+                // 移除“操作系统”显示
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("影音参数", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (mediaLoading) {
+                Text("加载中...")
+            } else {
+                val mi = media ?: MediaInfo("未知", "未知", "未知")
+                Text("摄像头：${mi.cameraSummary}")
+                Text("屏幕尺寸：${mi.screenSize}")
+                Text("分辨率：${mi.resolution}")
             }
 
             Spacer(Modifier.height(8.dp))
@@ -212,4 +254,75 @@ private suspend fun testFtpConnection(server: String, port: Int, user: String, p
             false
         }
     }
+}
+
+private data class MediaInfo(
+    val cameraSummary: String,
+    val screenSize: String,
+    val resolution: String
+)
+
+private fun loadMediaInfo(context: Context): MediaInfo {
+    // 屏幕分辨率与尺寸
+    val metrics = context.resources.displayMetrics
+    val widthPx = metrics.widthPixels.coerceAtLeast(1)
+    val heightPx = metrics.heightPixels.coerceAtLeast(1)
+    val xdpi = metrics.xdpi.takeIf { it > 0 } ?: metrics.densityDpi.toFloat()
+    val ydpi = metrics.ydpi.takeIf { it > 0 } ?: metrics.densityDpi.toFloat()
+    val widthInches = widthPx / xdpi
+    val heightInches = heightPx / ydpi
+    val diagonalInches = sqrt(widthInches * widthInches + heightInches * heightInches)
+    val screenSizeStr = if (diagonalInches.isFinite() && diagonalInches > 0) {
+        String.format("%.1f 英寸", diagonalInches)
+    } else {
+        "未知"
+    }
+    val resolutionStr = "${widthPx} x ${heightPx} @ ${metrics.densityDpi}dpi"
+
+    // 摄像头信息
+    var cameraSummary = "未知"
+    try {
+        val cm = context.getSystemService(CameraManager::class.java)
+        var backCount = 0
+        var frontCount = 0
+        var backMax: Size? = null
+        var frontMax: Size? = null
+
+        for (id in cm.cameraIdList) {
+            val chars = cm.getCameraCharacteristics(id)
+            val facing = chars.get(CameraCharacteristics.LENS_FACING)
+            val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val jpegSizes = try { map?.getOutputSizes(ImageFormat.JPEG) } catch (_: Exception) { null }
+            val max = jpegSizes?.maxByOrNull { it.width.toLong() * it.height.toLong() }
+
+            when (facing) {
+                CameraCharacteristics.LENS_FACING_BACK -> {
+                    backCount++
+                    if (max != null && (backMax == null || max.width.toLong() * max.height > backMax!!.width.toLong() * backMax!!.height)) {
+                        backMax = max
+                    }
+                }
+                CameraCharacteristics.LENS_FACING_FRONT -> {
+                    frontCount++
+                    if (max != null && (frontMax == null || max.width.toLong() * max.height > frontMax!!.width.toLong() * frontMax!!.height)) {
+                        frontMax = max
+                    }
+                }
+            }
+        }
+        cameraSummary = buildString {
+            append("后置：${backCount} 个")
+            if (backMax != null) append("（最大 ${backMax!!.width}x${backMax!!.height}）")
+            append("；前置：${frontCount} 个")
+            if (frontMax != null) append("（最大 ${frontMax!!.width}x${frontMax!!.height}）")
+        }.ifBlank { "未知" }
+    } catch (_: Exception) {
+        // 忽略错误，保持“未知”
+    }
+
+    return MediaInfo(
+        cameraSummary = cameraSummary,
+        screenSize = screenSizeStr,
+        resolution = resolutionStr
+    )
 }
