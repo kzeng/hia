@@ -59,6 +59,7 @@ import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import com.example.hia.FtpPreferences
 import com.example.hia.FtpConfig
 import org.apache.commons.net.ftp.FTP
@@ -136,6 +137,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
     var isUploading by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableStateOf(0f) }
     var uploadStatus by remember { mutableStateOf("") }
+    val uploadCancelFlag = remember { AtomicBoolean(false) }
 
     Row(
         modifier = modifier.padding(16.dp),
@@ -172,6 +174,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                 }
                 scope.launch {
                     isUploading = true; uploadProgress = 0f; uploadStatus = "准备中…"
+                    uploadCancelFlag.set(false)
                     // 1. 清理 DCIM/pic
                     val cleared = withContext(Dispatchers.IO) { clearPicDir(context) }
                     if (!cleared) {
@@ -206,13 +209,15 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                         return@launch
                     }
                     val ok = withContext(Dispatchers.IO) {
-                        uploadPicDirectoryToFtp(context, cfg) { cur, tot, msg ->
+                        uploadPicDirectoryToFtp(context, cfg, { cur, tot, msg ->
                             uploadProgress = if (tot > 0) cur.toFloat() / tot else 0f
                             uploadStatus = msg
-                        }
+                        }, { uploadCancelFlag.get() })
                     }
                     isUploading = false
-                    snackbarHostState.showSnackbar(if (ok) "上传完成" else "上传失败", duration = SnackbarDuration.Short)
+                    val cancelled = uploadCancelFlag.get()
+                    val msg = if (cancelled) "已取消上传" else if (ok) "上传完成" else "上传失败"
+                    snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
                 }
             }
         )
@@ -279,7 +284,10 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                     Text("正在上传", style = MaterialTheme.typography.titleMedium)
                     LinearProgressIndicator(progress = uploadProgress)
                     Text(uploadStatus)
-                    Text("请勿关闭应用…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = { uploadCancelFlag.set(true); uploadStatus = "已请求取消…" }) { Text("终止上传") }
+                        Text("请勿关闭应用…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -477,6 +485,7 @@ private fun parseInfoFromFilename(name: String, dateTaken: Long?): ParsedInfo {
     val face = code.drop(6).take(2)
     val column = code.drop(8).take(2)
     val point = code.drop(10).take(1)
+    val layer = code.drop(11).take(2)
     val ts = tsRaw?.toLongOrNull()
     val tsMs = when {
         ts == null -> dateTaken ?: 0L
@@ -486,7 +495,7 @@ private fun parseInfoFromFilename(name: String, dateTaken: Long?): ParsedInfo {
     }
     val timeStr = if (tsMs > 0) java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(tsMs)) else ""
     val title = name
-    val subtitle = "时间: ${timeStr}  楼层:${floor} 区域:${area} 架号:${shelf} 正反面:${face} 列:${column} 点位:${point}"
+    val subtitle = "时间: ${timeStr}  楼层:${floor} 区域:${area} 架号:${shelf} 正反面:${face} 列:${column} 点位:${point} 架层:${layer}"
     return ParsedInfo(title, subtitle)
 }
 
@@ -579,13 +588,15 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
     val ext = name.substringAfterLast('.', missingDelimiterValue = "png").lowercase(Locale.getDefault())
     val parts = base.split('-')
     val code = parts.getOrNull(0) ?: return false
-    if (code.length < 11) return false
+    if (code.length < 13) return false
     val code10 = code.take(10)
     val point = code.drop(10).take(1)
+    val layer = code.drop(11).take(2)
     val tsRaw = parts.getOrNull(1) ?: return false
     val ts = tsRaw.toLongOrNull() ?: return false
     val tsSec = if (ts >= 1_000_000_000_000L) ts / 1000 else ts
-    val relPath = "${Environment.DIRECTORY_DCIM}/pic/01${code10}01/book/${tsSec}/"
+    // 新命名规则：pic/<架层><前10位><第12-13位>/book/<时间戳>/
+    val relPath = "${Environment.DIRECTORY_DCIM}/pic/${layer}${code10}${layer}/book/${tsSec}/"
     val destName = "${point}.${ext}"
 
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -627,7 +638,12 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
     }
 }
 
-private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpConfig, progress: (cur: Int, total: Int, msg: String) -> Unit): Boolean {
+private fun uploadPicDirectoryToFtp(
+    context: android.content.Context,
+    cfg: FtpConfig,
+    progress: (cur: Int, total: Int, msg: String) -> Unit,
+    isCancelled: () -> Boolean
+): Boolean {
     val client = FTPClient()
     return try {
         client.connect(cfg.server, cfg.port)
@@ -636,6 +652,13 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
         if (!client.login(cfg.user, cfg.password)) { client.logout(); client.disconnect(); return false }
         client.enterLocalPassiveMode()
         client.setFileType(FTP.BINARY_FILE_TYPE)
+
+        if (isCancelled()) {
+            progress(0, 1, "已取消")
+            try { client.abort() } catch (_: Exception) {}
+            client.logout(); client.disconnect()
+            return false
+        }
 
         val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
         val picRoot = File(dcim, "pic")
@@ -646,13 +669,35 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
             allEntries.add(file)
         }
         
-        // 先创建所有目录结构
+        // 先确保远端存在 pic 根目录，并切换到该目录
+        if (isCancelled()) {
+            progress(0, 1, "已取消")
+            try { client.abort() } catch (_: Exception) {}
+            client.logout(); client.disconnect()
+            return false
+        }
+        client.changeWorkingDirectory("/")
+        if (!client.changeWorkingDirectory("pic")) {
+            client.makeDirectory("pic")
+            client.changeWorkingDirectory("pic")
+        }
+
+        // 先创建所有目录结构（在 pic 目录下）
         val dirs = allEntries.filter { it.isDirectory }.sortedBy { it.absolutePath.length }
         for (dir in dirs) {
             val relPath = dir.relativeTo(picRoot).toString().replace('\\', '/')
             if (relPath.isBlank()) continue
             
+            if (isCancelled()) {
+                progress(0, 1, "已取消")
+                try { client.abort() } catch (_: Exception) {}
+                client.logout(); client.disconnect()
+                return false
+            }
+
             val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
+            // 从 /pic 开始逐级进入/创建
+            client.changeWorkingDirectory("/pic")
             var cwd = ""
             for (d in dirsInPath) {
                 cwd = if (cwd.isBlank()) d else "$cwd/$d"
@@ -661,8 +706,8 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
                     client.changeWorkingDirectory(cwd)
                 }
             }
-            // 返回到根目录
-            client.changeWorkingDirectory("/")
+            // 返回到 /pic 根目录
+            client.changeWorkingDirectory("/pic")
         }
         
         // 上传所有文件
@@ -671,14 +716,21 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
         var cur = 0
         
         for (file in files) {
+            if (isCancelled()) {
+                progress(cur, total, "已取消")
+                try { client.abort() } catch (_: Exception) {}
+                client.logout(); client.disconnect()
+                return false
+            }
             val parent = file.parentFile
             val relPath = if (parent != null && parent != picRoot) {
                 parent.relativeTo(picRoot).toString().replace('\\', '/')
             } else ""
             val remoteName = file.name
             
-            // 切换到对应目录
+            // 切换到对应目录（从 /pic 开始）
             if (relPath.isNotBlank()) {
+                client.changeWorkingDirectory("/pic")
                 val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
                 var cwd = ""
                 for (d in dirsInPath) {
@@ -689,7 +741,7 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
                     }
                 }
             } else {
-                client.changeWorkingDirectory("/")
+                client.changeWorkingDirectory("/pic")
             }
             
             progress(cur, total, "上传 ${if (relPath.isNotBlank()) "$relPath/" else ""}$remoteName")
@@ -700,8 +752,8 @@ private fun uploadPicDirectoryToFtp(context: android.content.Context, cfg: FtpCo
             }
             
             cur++
-            // 返回到根目录，为下一个文件准备
-            client.changeWorkingDirectory("/")
+            // 返回到 /pic，为下一个文件准备
+            client.changeWorkingDirectory("/pic")
         }
         
         client.logout(); client.disconnect()

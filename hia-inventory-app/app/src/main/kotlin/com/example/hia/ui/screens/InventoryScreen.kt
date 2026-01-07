@@ -77,6 +77,7 @@ fun InventoryScreen(navController: NavHostController) {
     var face by remember { mutableStateOf(1) }
     var column by remember { mutableStateOf(1) }
     var point by remember { mutableStateOf(1) }
+    var layer by remember { mutableStateOf(1) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -105,12 +106,14 @@ fun InventoryScreen(navController: NavHostController) {
                 face = face,
                 column = column,
                 point = point,
+                layer = layer,
                 onFloorChange = { floor = it },
                 onAreaChange = { area = it },
                 onShelfChange = { shelf = it },
                 onFaceChange = { face = it },
                 onColumnChange = { column = it },
-                onPointChange = { point = it }
+                onPointChange = { point = it },
+                onLayerChange = { layer = it }
             )
 
             CameraPanel(
@@ -123,6 +126,7 @@ fun InventoryScreen(navController: NavHostController) {
                 face = face,
                 column = column,
                 point = point,
+                layer = layer,
                 snackbarHostState = snackbarHostState
             )
         }
@@ -138,14 +142,16 @@ private fun LocationPanel(
     face: Int,
     column: Int,
     point: Int,
+    layer: Int,
     onFloorChange: (Int) -> Unit,
     onAreaChange: (Int) -> Unit,
     onShelfChange: (Int) -> Unit,
     onFaceChange: (Int) -> Unit,
     onColumnChange: (Int) -> Unit,
-    onPointChange: (Int) -> Unit
+    onPointChange: (Int) -> Unit,
+    onLayerChange: (Int) -> Unit
 ) {
-    val codePart = "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
+    val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
     val filenamePreview = remember(codePart) {
         "$codePart-<timestamp>.png"
     }
@@ -174,6 +180,7 @@ private fun LocationPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 NumberStepper("列号", column, onColumnChange, 1..99)
                 NumberStepper("点位号", point, onPointChange, 1..9, padTwoDigits = false)
+                NumberStepper("架层", layer, onLayerChange, 1..99)
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -195,6 +202,7 @@ private fun CameraPanel(
     face: Int,
     column: Int,
     point: Int,
+    layer: Int,
     snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
@@ -281,7 +289,7 @@ private fun CameraPanel(
                 FloatingActionButton(
                     onClick = {
                         if (!cameraGranted || !writeGranted) return@FloatingActionButton
-                        val codePart = "%02d%02d%02d%02d%02d%d".format(floor, area, shelf, face, column, point)
+                        val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
                         val ts = System.currentTimeMillis().toString()
                         val filename = "$codePart-$ts.png"
                         val capture = imageCapture ?: return@FloatingActionButton
