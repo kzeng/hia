@@ -212,7 +212,12 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
             Text("APP信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("APP名称：手持盘点助手 Handheld Inventory Assistant (HIA)")
-            Text("版本：1.0.1")
+            // Text("版本：1.0.1")
+            //get from build.gradle.kts , NOT hardcode here
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            // Text("版本：${packageInfo.versionName} (${packageInfo.versionCode})")
+            Text("版本：${packageInfo.versionName}")
+
             val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
             Text("博库信息技术(武汉)有限公司©$currentYear")
         }

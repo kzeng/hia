@@ -329,23 +329,31 @@ fun CameraPreviewScreen(modifier: Modifier = Modifier) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 CameraPreviewView()
                 
-                // 圆形拍摄按钮，悬浮在预览窗口底部
-                FloatingActionButton(
-                    onClick = {
-                        // TODO: 实现拍摄功能
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                // 标准的圆形拍照按钮
+                Box(
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(100.dp)
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 32.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Camera,
-                        contentDescription = "拍摄",
-                        modifier = Modifier.size(48.dp)
-                    )
+                    IconButton(
+                        onClick = {
+                            // TODO: 实现拍摄功能
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            Icons.Default.Camera,
+                            contentDescription = "拍摄",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
                 }
             }
         } else {

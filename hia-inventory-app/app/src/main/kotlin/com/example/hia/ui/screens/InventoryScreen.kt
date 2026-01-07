@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -165,7 +166,17 @@ private fun LocationPanel(
             modifier = Modifier.padding(15.dp),
             verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
-            Text("拍照地点信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "拍照地点",
+                    modifier = Modifier.size(24.dp)
+                )
+                Text("拍照地点信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 NumberStepper("楼层", floor, onFloorChange, 1..99)
@@ -290,61 +301,74 @@ private fun CameraPanel(
                     }
                 )
 
-                FloatingActionButton(
-                    onClick = {
-                        if (!cameraGranted || !writeGranted) return@FloatingActionButton
-                        val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
-                        val ts = System.currentTimeMillis().toString()
-                        val filename = "$codePart-$ts.png"
-                        val capture = imageCapture ?: return@FloatingActionButton
-                        capture.takePicture(
-                            cameraExecutor,
-                            object : ImageCapture.OnImageCapturedCallback() {
-                                override fun onCaptureSuccess(image: ImageProxy) {
-                                    val bmp = imageProxyToBitmap(image)
-                                    image.close()
-                                    if (bmp != null) {
-                                        val ok = saveBitmapToDcimDateFolder(context, bmp, filename)
-                                        lastCaptured = if (ok) filename else lastCaptured
-                                        if (ok) {
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    message = "照片已保存",
-                                                    withDismissAction = true
-                                                )
-                                            }
-                                        } else {
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar(
-                                                    message = "保存失败",
-                                                    withDismissAction = true
-                                                )
-                                            }
-                                        }
-                                        if (!ok) Log.e("Inventory", "Failed to save $filename")
-                                    }
-                                }
-
-                                override fun onError(exception: ImageCaptureException) {
-                                    Log.e("Inventory", "Capture error", exception)
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "拍摄失败",
-                                            withDismissAction = true
-                                        )
-                                    }
-                                }
-                            }
-                        )
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                // 标准的圆形拍照按钮
+                Box(
                     modifier = Modifier
-                        .size(96.dp)
+                        .size(100.dp)
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 24.dp)
                 ) {
-                    Icon(Icons.Filled.CameraAlt, contentDescription = "拍摄", modifier = Modifier.size(40.dp))
+                    IconButton(
+                        onClick = {
+                            if (!cameraGranted || !writeGranted) return@IconButton
+                            val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
+                            val ts = (System.currentTimeMillis() / 1000).toString() // 10位秒时间戳
+                            val filename = "$codePart-$ts.png"
+                            val capture = imageCapture ?: return@IconButton
+                            capture.takePicture(
+                                cameraExecutor,
+                                object : ImageCapture.OnImageCapturedCallback() {
+                                    override fun onCaptureSuccess(image: ImageProxy) {
+                                        val bmp = imageProxyToBitmap(image)
+                                        image.close()
+                                        if (bmp != null) {
+                                            val ok = saveBitmapToDcimDateFolder(context, bmp, filename)
+                                            lastCaptured = if (ok) filename else lastCaptured
+                                            if (ok) {
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        message = "照片已保存",
+                                                        withDismissAction = true
+                                                    )
+                                                }
+                                            } else {
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        message = "保存失败",
+                                                        withDismissAction = true
+                                                    )
+                                                }
+                                            }
+                                            if (!ok) Log.e("Inventory", "Failed to save $filename")
+                                        }
+                                    }
+
+                                    override fun onError(exception: ImageCaptureException) {
+                                        Log.e("Inventory", "Capture error", exception)
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                message = "拍摄失败",
+                                                withDismissAction = true
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                androidx.compose.foundation.shape.CircleShape
+                            )
+                    ) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = "拍摄",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
                 }
             }
 
