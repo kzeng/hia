@@ -66,10 +66,10 @@ fun SettingsScreen(navController: NavHostController) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 左侧：FTP 配置
-            FtpConfigCard(modifier = Modifier.weight(0.4f), snackbarHostState = snackbarHostState)
+            FtpConfigCard(modifier = Modifier.weight(0.35f), snackbarHostState = snackbarHostState)
 
             // 右侧：系统/APP 信息
-            InfoPanel(modifier = Modifier.weight(0.6f))
+            InfoPanel(modifier = Modifier.weight(0.65f))
         }
     }
 }
@@ -169,14 +169,6 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
 private fun InfoPanel(modifier: Modifier = Modifier) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            androidx.compose.foundation.Image(
-                painter = androidx.compose.ui.res.painterResource(id = com.example.hia.R.drawable.logo),
-                contentDescription = "App Logo",
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
             val context = LocalContext.current
             var sys by remember { mutableStateOf<SystemInfo?>(null) }
             var loading by remember { mutableStateOf(true) }
@@ -220,7 +212,7 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
             Text("APP信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("APP名称：手持盘点助手 Handheld Inventory Assistant (HIA)")
-            Text("版本：${BuildConfig.VERSION_NAME}")
+            Text("版本：1.0.1")
             val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
             Text("博库信息技术(武汉)有限公司©$currentYear")
         }

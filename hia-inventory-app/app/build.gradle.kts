@@ -86,10 +86,12 @@ dependencies {
 
 
 //kzeng added to rename debug apk
-androidComponents {
-    onVariants(selector().withBuildType("debug")) { variant ->
-        variant.outputs.forEach { output ->
-            output.outputFileName.set("boku-hia.apk")
-        }
-    }
-}
+// Temporarily commented out due to Gradle compatibility issue
+// androidComponents {
+//     onVariants(selector().withBuildType("debug")) { variant ->
+//         variant.outputs.forEach { output ->
+//             // 设置输出文件名
+//             output.outputFileName.set("boku-hia.apk")
+//         }
+//     }
+// }

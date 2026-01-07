@@ -28,7 +28,9 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -594,10 +596,33 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
     val layer = code.drop(11).take(2)
     val tsRaw = parts.getOrNull(1) ?: return false
     val ts = tsRaw.toLongOrNull() ?: return false
-    val tsSec = if (ts >= 1_000_000_000_000L) ts / 1000 else ts
-    // 新命名规则：pic/<架层><前10位><第12-13位>/book/<时间戳>/
-    val relPath = "${Environment.DIRECTORY_DCIM}/pic/${layer}${code10}${layer}/book/${tsSec}/"
+    // 确保时间戳是10位秒（如果输入是13位毫秒则除以1000）
+    val tsSec = if (ts >= 1_000_000_000_000L) {
+        // 13位毫秒，转换为10位秒
+        ts / 1000
+    } else if (ts >= 1_000_000_000L) {
+        // 已经是10位秒
+        ts
+    } else {
+        // 小于10位，可能是其他格式，使用当前时间作为后备
+        Log.w("Photos", "Invalid timestamp in filename: $ts, using current time")
+        System.currentTimeMillis() / 1000
+    }
+    
+    // 确保时间戳是有效的10位数字
+    val finalTsSec = if (tsSec <= 0) {
+        Log.w("Photos", "Invalid timestamp after conversion: $tsSec, using current time")
+        val currentTimeSec = System.currentTimeMillis() / 1000
+        Log.i("Photos", "Using fallback timestamp: $currentTimeSec")
+        currentTimeSec
+    } else {
+        Log.i("Photos", "Using timestamp: $tsSec for path")
+        tsSec
+    }
+    // 修正命名规则：pic/01<前10位><第12-13位>/book/<时间戳>/
+    val relPath = "${Environment.DIRECTORY_DCIM}/pic/01${code10}${layer}/book/${finalTsSec}/"
     val destName = "${point}.${ext}"
+    Log.i("Photos", "Final path: $relPath, filename: $destName")
 
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val resolver = context.contentResolver
@@ -623,7 +648,7 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
         } catch (_: Exception) { false }
     } else {
         val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-        val targetDir = File(dcim, "pic/01${code10}01/book/${tsSec}")
+        val targetDir = File(dcim, "pic/01${code10}${layer}/book/${finalTsSec}")
         if (!targetDir.exists()) targetDir.mkdirs()
         val outFile = File(targetDir, destName)
         return try {
@@ -695,15 +720,27 @@ private fun uploadPicDirectoryToFtp(
                 return false
             }
 
+            Log.i("FTP", "Creating directory structure for: $relPath")
             val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
             // 从 /pic 开始逐级进入/创建
             client.changeWorkingDirectory("/pic")
-            var cwd = ""
             for (d in dirsInPath) {
-                cwd = if (cwd.isBlank()) d else "$cwd/$d"
-                if (!client.changeWorkingDirectory(cwd)) {
-                    client.makeDirectory(cwd)
-                    client.changeWorkingDirectory(cwd)
+                Log.i("FTP", "Checking/creating directory: $d")
+                if (!client.changeWorkingDirectory(d)) {
+                    val success = client.makeDirectory(d)
+                    if (success) {
+                        Log.i("FTP", "Successfully created directory: $d")
+                        client.changeWorkingDirectory(d)
+                    } else {
+                        Log.w("FTP", "Failed to create directory: $d, reply: ${client.replyString}")
+                        // 尝试检查是否目录已存在但无法切换（权限问题）
+                        // 尝试直接进入，可能目录已存在但权限问题导致无法切换
+                        if (!client.changeWorkingDirectory(d)) {
+                            Log.w("FTP", "Cannot change to directory after creation attempt: $d")
+                        }
+                    }
+                } else {
+                    Log.i("FTP", "Directory already exists: $d")
                 }
             }
             // 返回到 /pic 根目录
@@ -729,19 +766,15 @@ private fun uploadPicDirectoryToFtp(
             val remoteName = file.name
             
             // 切换到对应目录（从 /pic 开始）
+            client.changeWorkingDirectory("/pic")
             if (relPath.isNotBlank()) {
-                client.changeWorkingDirectory("/pic")
                 val dirsInPath = relPath.split('/').filter { it.isNotBlank() }
-                var cwd = ""
                 for (d in dirsInPath) {
-                    cwd = if (cwd.isBlank()) d else "$cwd/$d"
-                    if (!client.changeWorkingDirectory(cwd)) {
-                        client.makeDirectory(cwd)
-                        client.changeWorkingDirectory(cwd)
+                    if (!client.changeWorkingDirectory(d)) {
+                        client.makeDirectory(d)
+                        client.changeWorkingDirectory(d)
                     }
                 }
-            } else {
-                client.changeWorkingDirectory("/pic")
             }
             
             progress(cur, total, "上传 ${if (relPath.isNotBlank()) "$relPath/" else ""}$remoteName")
@@ -823,7 +856,8 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
             
             if (!hadFiles) {
                 Log.i("Photos", "Folder $folder has no files or doesn't exist")
-                return true // Folder is empty or doesn't exist
+                // 尝试删除空文件夹
+                return tryDeleteFolderDirectory(folder)
             }
             
             // Check if any files remain
@@ -859,7 +893,9 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
             }
             
             Log.i("Photos", "Successfully deleted folder $folder, total files deleted: $totalDeleted")
-            true
+            
+            // 所有文件已删除，现在尝试删除文件夹本身
+            return tryDeleteFolderDirectory(folder)
         } catch (e: SecurityException) {
             Log.e("Photos", "Delete requires user consent", e)
             false
@@ -904,6 +940,39 @@ private fun deleteFolder(context: android.content.Context, folder: String): Bool
             Log.e("Photos", "Failed to delete folder $folder", e)
             false
         }
+    }
+}
+
+/**
+ * 尝试删除文件夹目录本身（在删除所有文件后）
+ */
+private fun tryDeleteFolderDirectory(folder: String): Boolean {
+    return try {
+        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), folder)
+        if (!dir.exists()) {
+            Log.i("Photos", "Folder $folder doesn't exist, nothing to delete")
+            return true
+        }
+        
+        // 检查目录是否为空
+        val files = dir.listFiles()
+        if (files.isNullOrEmpty()) {
+            // 目录为空，尝试删除
+            val deleted = dir.delete()
+            if (deleted) {
+                Log.i("Photos", "Successfully deleted empty folder $folder")
+            } else {
+                Log.w("Photos", "Failed to delete empty folder $folder, may be in use or permission denied")
+            }
+            deleted
+        } else {
+            // 目录不为空，记录警告
+            Log.w("Photos", "Folder $folder is not empty, cannot delete directory. Remaining files: ${files.size}")
+            false
+        }
+    } catch (e: Exception) {
+        Log.e("Photos", "Error trying to delete folder directory $folder", e)
+        false
     }
 }
 
@@ -986,6 +1055,7 @@ private fun FolderRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showUploadConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Card(colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
@@ -1006,11 +1076,36 @@ private fun FolderRow(
             Text(name, style = MaterialTheme.typography.bodyLarge)
             Box {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("删除文件夹") }, onClick = { 
-                        menuOpen = false
-                        showDeleteConfirm = true
-                    })
-                    DropdownMenuItem(text = { Text("上传文件夹") }, onClick = { menuOpen = false; onUpload(name) })
+                    DropdownMenuItem(
+                        text = { 
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Text("删除文件夹")
+                            }
+                        }, 
+                        onClick = { 
+                            menuOpen = false
+                            showDeleteConfirm = true
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { 
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Text("上传文件夹")
+                            }
+                        }, 
+                        onClick = { 
+                            menuOpen = false
+                            showUploadConfirm = true
+                        }
+                    )
                 }
             }
         }
@@ -1034,6 +1129,31 @@ private fun FolderRow(
             dismissButton = {
                 TextButton(
                     onClick = { showDeleteConfirm = false }
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showUploadConfirm) {
+        AlertDialog(
+            onDismissRequest = { showUploadConfirm = false },
+            title = { Text("确认上传") },
+            text = { Text("确定要上传文件夹 '$name' 到FTP服务器吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showUploadConfirm = false
+                        onUpload(name)
+                    }
+                ) {
+                    Text("上传")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showUploadConfirm = false }
                 ) {
                     Text("取消")
                 }

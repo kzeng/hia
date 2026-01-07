@@ -98,7 +98,7 @@ fun InventoryScreen(navController: NavHostController) {
         ) {
             LocationPanel(
                 modifier = Modifier
-                    .weight(0.35f)
+                    .weight(0.32f)
                     .fillMaxHeight(),
                 floor = floor,
                 area = area,
@@ -118,7 +118,7 @@ fun InventoryScreen(navController: NavHostController) {
 
             CameraPanel(
                 modifier = Modifier
-                    .weight(0.65f)
+                    .weight(0.68f)
                     .fillMaxHeight(),
                 floor = floor,
                 area = area,
@@ -162,29 +162,33 @@ private fun LocationPanel(
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             Text("拍照地点信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 NumberStepper("楼层", floor, onFloorChange, 1..99)
                 NumberStepper("区域", area, onAreaChange, 1..99)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 NumberStepper("架号", shelf, onShelfChange, 1..99)
                 NumberStepper("正反面号", face, onFaceChange, 1..99)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 NumberStepper("列号", column, onColumnChange, 1..99)
                 NumberStepper("点位号", point, onPointChange, 1..9, padTwoDigits = false)
+            }
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                 NumberStepper("架层", layer, onLayerChange, 1..99)
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(12.dp)) {
+                Column(Modifier.padding(11.dp)) {
                     Text("文件命名预览", style = MaterialTheme.typography.labelLarge)
                     Text(filenamePreview, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 }
@@ -360,21 +364,35 @@ private fun NumberStepper(
     padTwoDigits: Boolean = true
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (value > range.first) onValueChange(value - 1) }) {
-                    Icon(painterResource(android.R.drawable.ic_media_previous), contentDescription = "-1")
+                IconButton(
+                    onClick = { if (value > range.first) onValueChange(value - 1) },
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Icon(
+                        painterResource(android.R.drawable.ic_media_previous), 
+                        contentDescription = "-1",
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
                 Text(
                     text = if (padTwoDigits) "%02d".format(value) else value.toString(),
-                    fontSize = 22.sp,
-                    modifier = Modifier.width(56.dp),
+                    fontSize = 21.sp,
+                    modifier = Modifier.width(54.dp),
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = { if (value < range.last) onValueChange(value + 1) }) {
-                    Icon(painterResource(android.R.drawable.ic_media_next), contentDescription = "+1")
+                IconButton(
+                    onClick = { if (value < range.last) onValueChange(value + 1) },
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Icon(
+                        painterResource(android.R.drawable.ic_media_next), 
+                        contentDescription = "+1",
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
             }
         }
