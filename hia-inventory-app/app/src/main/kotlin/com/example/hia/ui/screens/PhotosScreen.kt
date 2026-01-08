@@ -18,9 +18,11 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -212,7 +214,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
                         return@launch
                     }
                     val ok = withContext(Dispatchers.IO) {
-                        uploadPicDirectoryToFtp(context, cfg, { cur, tot, msg ->
+                        uploadPicDirectoryToFtp(cfg, { cur, tot, msg ->
                             uploadProgress = if (tot > 0) cur.toFloat() / tot else 0f
                             uploadStatus = msg
                         }, { uploadCancelFlag.get() })
@@ -285,7 +287,7 @@ fun PhotoLibraryScreen(modifier: Modifier = Modifier, snackbarHostState: Snackba
             Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 4.dp) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("正在上传", style = MaterialTheme.typography.titleMedium)
-                    LinearProgressIndicator(progress = uploadProgress)
+                    LinearProgressIndicator(progress = { uploadProgress })
                     Text(uploadStatus)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(onClick = { uploadCancelFlag.set(true); uploadStatus = "已请求取消…" }) { Text("终止上传") }
@@ -302,7 +304,6 @@ data class PhotoItem(val uri: Uri, val displayName: String, val dateTaken: Long?
 @Composable
 fun CameraPreviewScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     var cameraPermissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -673,7 +674,6 @@ private fun copyAndRenameToPic(context: android.content.Context, item: PhotoItem
 }
 
 private fun uploadPicDirectoryToFtp(
-    context: android.content.Context,
     cfg: FtpConfig,
     progress: (cur: Int, total: Int, msg: String) -> Unit,
     isCancelled: () -> Boolean
@@ -1041,30 +1041,16 @@ private fun FoldersPanel(
     onUpload: (String) -> Unit
 ) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
-        // 搜索状态与滚动状态
-        var query by remember { mutableStateOf("") }
-        val qDigits = remember(query) { query.filter { it.isDigit() } }
-        val filtered = remember(folders, qDigits) {
-            if (qDigits.isBlank()) folders else folders.filter { it.contains(qDigits) }
-        }
         val listState = rememberLazyListState()
-        val selectedIndexInFiltered = remember(filtered, selected) { filtered.indexOf(selected) }
-        LaunchedEffect(selectedIndexInFiltered) {
-            if (selectedIndexInFiltered >= 0) {
-                listState.animateScrollToItem(selectedIndexInFiltered)
+        val selectedIndex = remember(folders, selected) { folders.indexOf(selected) }
+        LaunchedEffect(selectedIndex) {
+            if (selectedIndex >= 0) {
+                listState.animateScrollToItem(selectedIndex)
             }
         }
 
         Column(Modifier.padding(12.dp)) {
             Text("图片目录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it.trim() },
-                label = { Text("搜索 yyyymmdd") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
                 state = listState,
@@ -1073,8 +1059,8 @@ private fun FoldersPanel(
                     .fillMaxWidth()
                     .fillMaxHeight()
             ) {
-                items(filtered.size) { idx ->
-                    val name = filtered[idx]
+                items(folders.size) { idx ->
+                    val name = folders[idx]
                     FolderRow(
                         name = name,
                         selected = name == selected,
@@ -1099,9 +1085,16 @@ private fun FolderRow(
     var menuOpen by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showUploadConfirm by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
-    Card(colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = if (selected) CardDefaults.outlinedCardBorder() else null,
+        elevation = if (selected) CardDefaults.elevatedCardElevation() else CardDefaults.cardElevation(),
+        modifier = Modifier.animateContentSize()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1115,8 +1108,16 @@ private fun FolderRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Default.Folder, contentDescription = null)
-            Text(name, style = MaterialTheme.typography.bodyLarge)
+            Icon(
+                Icons.Default.Folder, 
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                name, 
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
             Box {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
