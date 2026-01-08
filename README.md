@@ -2,11 +2,10 @@
 # HIA - Handheld Inventory Assistant
 
 <hr>
-<center>
-<img src="./hia-inventory-app/logo.png" alt="Prototype" width="90" style="border-radius:15px;" />
-</center>
- ## PROTO
 
+<img src="./hia-inventory-app/logo.png" alt="Prototype" width="90" style="border-radius:15px;" />
+
+ ## PROTO   
 ![Prototype](./hia-inventory-app/proto/inventory.jpg)
 
 ![Prototype](./hia-inventory-app/proto/photos.jpg)
@@ -21,3 +20,7 @@ This project is an Android application designed for book inventory management. I
 - **Photo Management**: Photos management, eg. view/upload/remove.
 - **System Settings**: Settings of App.
 - **Navigation**: Navigation between Inventory, Photos, and Settings.
+
+## ORIGIN
+
+- https://github.com/kzeng/hia
