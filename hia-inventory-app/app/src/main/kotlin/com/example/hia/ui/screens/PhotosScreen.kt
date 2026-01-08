@@ -1048,6 +1048,12 @@ private fun FoldersPanel(
             if (qDigits.isBlank()) folders else folders.filter { it.contains(qDigits) }
         }
         val listState = rememberLazyListState()
+        val selectedIndexInFiltered = remember(filtered, selected) { filtered.indexOf(selected) }
+        LaunchedEffect(selectedIndexInFiltered) {
+            if (selectedIndexInFiltered >= 0) {
+                listState.animateScrollToItem(selectedIndexInFiltered)
+            }
+        }
 
         Column(Modifier.padding(12.dp)) {
             Text("图片目录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
