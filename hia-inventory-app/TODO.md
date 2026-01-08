@@ -101,3 +101,88 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
 
 
 # ISSUES
+
+# UI
+## 图书盘点
+// ...existing content...
+
+### 左侧“文件夹列表”可视性与滚动优化
+问题：当文件夹很多时，非滚动容器（如普通 Column）会导致超出视口的项不可见。
+
+方案（Compose + M3）：
+1) 使用 LazyColumn + rememberLazyListState，天然虚拟化与垂直滚动；确保 Modifier.fillMaxHeight().
+2) 顶部加入搜索框（按 yyyymmdd 模糊过滤），减少列表长度。
+3) 按月份分组并使用 stickyHeader 显示“2026-01”等分组标题，提升可扫读性。
+4) 可选：叠加自定义细窄滚动条（Overlay），或集成第三方 FastScroller（Compose）以快速拖拽。
+5) 交互：选中项保持可见（onSelect 后调用 animateScrollToItem），长按弹出菜单（删除/上传）。
+6) 状态：记住滚动位置（firstVisibleIndex/offset），返回时恢复；避免闪烁。
+7) 无障碍：滚动条触控目标≥48dp，StickyHeader加 contentDescription；搜索框支持TalkBack。
+
+示例（简化伪代码，仅展示结构）：
+```kotlin
+// 左栏示例
+@Composable
+fun FolderSidebar(
+  foldersByMonth: Map<YearMonth, List<Folder>>,
+  onSelect: (Folder) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val listState = rememberLazyListState()
+  Box(modifier) {
+    LazyColumn(
+      state = listState,
+      modifier = Modifier
+        .fillMaxHeight()
+        .fillMaxWidth()
+    ) {
+      // 搜索框占位（可放外层）
+      // stickyHeader 需要 foundation.lazy.Experimental
+      foldersByMonth.forEach { (month, items) =>
+        stickyHeader {
+          Surface(tonalElevation = 2.dp) { Text(text = month.format(), modifier = Modifier.padding(8.dp)) }
+        }
+        items(items, key = { it.path }) { folder =>
+          FolderRow(folder = folder, onClick = { onSelect(folder) }, onLongClick = { /* 删除/上传 */ })
+        }
+      }
+    }
+
+    // 可选：自定义滚动条（根据 listState 计算 thumb 高度与位置）
+    VerticalScrollbar(
+      listState = listState,
+      modifier = Modifier
+        .align(Alignment.CenterEnd)
+        .fillMaxHeight()
+        .width(4.dp)
+    )
+  }
+}
+
+// 选中项后确保可见
+suspend fun ensureVisible(listState: LazyListState, index: Int) {
+  val range = listState.layoutInfo.visibleItemsInfo.map { it.index }
+  if (index !in range) listState.animateScrollToItem(index)
+}
+```
+
+依赖建议：
+- 若需“拖拽快滑”手感，考虑引入 FastScroller（Compose 第三方库），仅用于左栏；保持 M3 主题色彩。
+- 不引库时，使用 Overlay 细滚动条 + 点击跳转“月份索引”按钮（浮动侧栏）。
+
+性能要点：
+- LazyColumn items 使用稳定 key（文件夹路径/日期）。
+- deriveStateOf 处理过滤与分组；避免每次重组全量排序。
+- 大量数据时分页加载或分批构建列表。
+
+## 照片管理
+// ...existing content...
+
+### 左侧文件夹列表（派生 DCIM/yyyymmdd）
+- 使用上述 LazyColumn + stickyHeader 方案；支持搜索与长按菜单。
+- 选中后刷新右侧 Grid；Grid 的分页导航与左栏互不遮挡。
+
+# Featues
+## 照片管理
+// ...existing content...
+
+- 左侧栏列表：改为 LazyColumn，添加搜索与月份 stickyHeader；可选自定义滚动条或 FastScroller。

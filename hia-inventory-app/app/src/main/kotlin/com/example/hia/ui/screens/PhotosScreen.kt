@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -1040,13 +1041,41 @@ private fun FoldersPanel(
     onUpload: (String) -> Unit
 ) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
+        // 搜索状态与滚动状态
+        var query by remember { mutableStateOf("") }
+        val qDigits = remember(query) { query.filter { it.isDigit() } }
+        val filtered = remember(folders, qDigits) {
+            if (qDigits.isBlank()) folders else folders.filter { it.contains(qDigits) }
+        }
+        val listState = rememberLazyListState()
+
         Column(Modifier.padding(12.dp)) {
             Text("图片目录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(folders.size) { idx ->
-                    val name = folders[idx]
-                    FolderRow(name = name, selected = name == selected, onClick = { onSelect(name) }, onDelete = onDelete, onUpload = onUpload)
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it.trim() },
+                label = { Text("搜索 yyyymmdd") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+            ) {
+                items(filtered.size) { idx ->
+                    val name = filtered[idx]
+                    FolderRow(
+                        name = name,
+                        selected = name == selected,
+                        onClick = { onSelect(name) },
+                        onDelete = onDelete,
+                        onUpload = onUpload
+                    )
                 }
             }
         }
