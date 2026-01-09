@@ -97,14 +97,33 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
 现在不再走 imageProxyToBitmap 与 saveBitmapToDcimDateFolder，CPU/IO 大幅减少，通常可把总时延压到 1 秒内（视设备而定）。
 最小延迟模式会减少等待 AF/AE 完全收敛的时间，拍摄响应更快；如需更稳的曝光/对焦，可改回 MAXIMIZE_QUALITY。
 若必须严格使用 .png 后缀，请确认是否允许改为 .jpg；PNG 是无损压缩，编码很慢。若必须 PNG，建议：降低目标分辨率（例如 setTargetResolution 1280×960），或拍完后台异步转 PNG，但拍摄当下仍会慢。
-需要我同步把 Photos/命名解析/上传逻辑兼容 .jpg 吗？如果必须保留 .png 后缀，请确认，我再给出保留 .png 的优化版（以降分辨率为主）。
 
+### FAQ：最高质量 JPG vs PNG（质量与时空效率）
+- 画质
+  - 实拍照片：JPEG（q≈95–100）与 PNG 肉眼差异很小；极端细节/反复编辑才更易见差。
+  - 文本/线稿/UI 截图：PNG 更锐利（无损、无振铃/马赛克）；JPEG 可能出现压缩纹理。
+- 体积（空间效率）
+  - 同分辨率实拍照片：JPEG 通常比 PNG 小 3–10 倍。
+- 性能（时间效率）
+  - 编码/写盘：JPEG 明显更快；CameraX 原生输出 JPEG，管线更短（可快 2–10 倍，设备依赖）。
+- 特性
+  - PNG 支持透明通道；JPEG 通常具备 EXIF、旋转标记、缩略图等。
+
+结论与建议
+- 默认：使用 JPEG（jpegQuality≈85–95），后缀 .jpg，获得更好的“时空效率”（更快、更小）。
+- 仅当需要无损或透明通道时使用 PNG。
+- 若业务强制 PNG：降低分辨率或后台异步转 PNG；拍摄当下仍建议先保存 JPEG 以提速。
+
+落地到本应用
+- 拍照：ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY + 直接写 MediaStore（JPEG），jpegQuality≈90。
+- 命名/解析/上传：优先兼容 .jpg；如需保留 .png，两个后缀均支持。
+- 设置项：新增“保存格式（JPG/PNG）”并在说明中提示性能差异。
 
 # ISSUES
 
 # UI
 ## 图书盘点
-// ...existing content...
+<!-- ...existing content... -->
 
 ### 左侧“文件夹列表”可视性与滚动优化
 问题：当文件夹很多时，非滚动容器（如普通 Column）会导致超出视口的项不可见。
@@ -186,3 +205,46 @@ suspend fun ensureVisible(listState: LazyListState, index: Int) {
 // ...existing content...
 
 - 左侧栏列表：改为 LazyColumn，添加搜索与月份 stickyHeader；可选自定义滚动条或 FastScroller。
+
+# Optimize
+PNG 拍摄提速方案
+- 默认方案（异步转码，提升“时间效率”）
+  - 拍摄：CameraX ImageCapture 使用 CAPTURE_MODE_MINIMIZE_LATENCY，直接保存 JPEG 到 MediaStore；拍后立刻弹 Snackbar（≈1 秒内）。
+  - 转码：WorkManager 后台将 JPEG 转成 PNG，并按命名/路径规则移动与重命名；完成后更新列表并（可选）删除原 JPEG。
+  - 实现要点：
+    - 复用 YuvToRgbConverter/Bitmap，避免每次分配；转码用 IO 与 Default Dispatcher，禁止阻塞主线程。
+    - 进度：在“照片管理”页显示后台队列与进度；失败自动重试（指数退避）。
+    - 上传：当 PNG 就绪后再入队上传；支持增量续传。
+- 直出 PNG（业务强制 PNG 时）
+  - 分辨率：降低到 1280×960 或 1600×1200（4:3），显著缩短编码与写盘。
+  - NDK：libyuv 做 YUV_420_888→ARGB 加速；libpng 编码，设置 compressionLevel=1–3、FILTER_NONE（优先速度）。
+  - 管线与内存：
+    - 预分配与复用 DirectByteBuffer/ByteArrayOutputStream；避免拷贝链路（YUV→RGB→PNG 流式写入 FileOutputStream）。
+    - 按批写盘，使用 MediaStore is_pending 标记，完成后清除；避免 UI 等待。
+  - 线程：编码在单独线程池执行；主线程仅负责快照与提示。
+- 共同优化
+  - 目标比例 4:3；对焦/曝光使用 CAPTURE_MODE_MINIMIZE_LATENCY。
+  - 禁止在 UI 线程执行 PNG 压缩；所有重任务走后台。
+  - 错误与回退：若 PNG 转码失败，保留 JPEG 并提示用户重试。
+- 设置与可配置项
+  - 设置项：保存格式（JPG/PNG/自动），当选 PNG 时提示“拍摄当下更慢，建议后台转码”。
+  - PNG 转码压缩等级（1–3）与分辨率（预设档位）可选。
+
+## Diagnostics：拍照实现现状检查（JPEG vs PNG）
+- 静态检索（代码层）
+  - 搜索关键字：ImageCapture、setCaptureMode、CAPTURE_MODE_MINIMIZE_LATENCY/MAXIMIZE_QUALITY
+  - 搜索保存路径：OutputFileOptions、MediaStore.Images.Media（JPEG 直写标志）
+  - 搜索管线迹象：ImageProxy、YuvToRgbConverter、Bitmap.compress(format=PNG)、FileOutputStream(".png")
+- 运行时验证（日志与耗时）
+  - 在 takePhoto/onImageSaved/onError 周围记录耗时与管线标记：
+    - Log：[Camera] captureStart、[Camera] saved(uri=..., ext=.jpg/.png)、duration=XXX ms
+    - Log：[Pipeline] path=JPEG(MediaStore) 或 path=YUV→Bitmap→PNG
+- 判定标准
+  - JPEG 直写：扩展名 .jpg、MediaStore Uri、CAPTURE_MODE_MINIMIZE_LATENCY；总时延≈0.8–1.5s
+  - PNG 管线：出现 Bitmap.compress PNG 或 libpng；总时延≈2–4s（设备依赖）
+- 快速检索命令
+  - Windows：findstr /s /i "ImageCapture CAPTURE_MODE OutputFileOptions ImageProxy Bitmap.compress PNG" *.kt *.java
+  - Git Bash：rg -n "ImageCapture|CAPTURE_MODE|OutputFileOptions|ImageProxy|Bitmap\.compress|PNG" app/src
+- 后续动作
+  - 若当前为 PNG 管线：按“PNG 拍摄提速方案”迁移或改为后台转码。
+  - 若为 JPEG 直写：确保 jpegQuality≈85–95，并兼容命名/上传逻辑的 .jpg。
