@@ -18,6 +18,12 @@
       "type": "promptString",
       "description": "ADB device ID (leave empty to auto-detect or use ANDROID_SERIAL)",
       "default": ""
+    },
+    {
+      "id": "gitProxy",
+      "type": "promptString",
+      "description": "Git proxy URL (e.g. http://proxy.example.com:8080 or socks5h://host:1080)",
+      "default": ""
     }
   ],
   "tasks": [
@@ -95,6 +101,39 @@
         "Install Release App (Device)"
       ],
       "dependsOrder": "sequence"
+    },
+    {
+      "label": "Git: Set Proxy (Global)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; if [ -z \"${input:gitProxy}\" ]; then echo \"Proxy URL is empty. Example: http://proxy.example.com:8080\"; exit 2; fi; git config --global http.proxy \"${input:gitProxy}\"; git config --global https.proxy \"${input:gitProxy}\"; git config --global \"http.https://github.com/.proxy\" \"${input:gitProxy}\"; git config --global -l | sed -n '1,200p'"
+      ],
+      "problemMatcher": [],
+      "detail": "Sets Git global proxy (http/https and GitHub host-specific)"
+    },
+    {
+      "label": "Git: Unset Proxy (Global)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; git config --global --unset http.proxy || true; git config --global --unset https.proxy || true; git config --global --unset \"http.https://github.com/.proxy\" || true; git config --global -l | sed -n '1,200p'"
+      ],
+      "problemMatcher": [],
+      "detail": "Unsets Git global proxy settings"
+    },
+    {
+      "label": "Git: Switch Remote to SSH over 443",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; mkdir -p \"$HOME/.ssh\"; chmod 700 \"$HOME/.ssh\"; if [ ! -f \"$HOME/.ssh/id_ed25519\" ]; then ssh-keygen -t ed25519 -N '' -f \"$HOME/.ssh/id_ed25519\" -C 'vs-code'; fi; cat \"$HOME/.ssh/id_ed25519.pub\"; printf '\nAdd the above key to GitHub (Settings → SSH keys), then press Enter to continue...'; read _; cat > \"$HOME/.ssh/config\" <<'EOF'\nHost github.com\n  HostName ssh.github.com\n  Port 443\n  User git\n  IdentityFile ~/.ssh/id_ed25519\n  TCPKeepAlive yes\n  ServerAliveInterval 60\nEOF\nchmod 600 \"$HOME/.ssh/config\"; cd \"${workspaceFolder}\"; git remote set-url origin git@github.com:kzeng/hia.git; git push origin main | sed -n '1,200p'"
+      ],
+      "problemMatcher": [],
+      "detail": "Configures SSH to use port 443 and pushes via SSH"
     }
   ]
 }
