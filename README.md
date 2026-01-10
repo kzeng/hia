@@ -1,9 +1,9 @@
-# 手持盘点助手
+# 手持图书盘点助手
 # HIA - Handheld Inventory Assistant
 
 <hr>
 
-<img src="./hia-inventory-app/logo.png" alt="Prototype" width="90" style="border-radius:15px;" />
+<img src="./hia-inventory-app/logo.png" alt="Prototype" width="120" style="border-radius:30px;" />
 
  ## PROTO   
 ![Prototype](./hia-inventory-app/proto/inventory.jpg)
