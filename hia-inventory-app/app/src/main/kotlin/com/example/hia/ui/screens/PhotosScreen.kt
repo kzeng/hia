@@ -515,24 +515,49 @@ private fun loadDcimDateFolders(context: android.content.Context): List<String> 
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val resolver = context.contentResolver
         val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val projection = arrayOf(MediaStore.MediaColumns.RELATIVE_PATH)
-        val set = linkedSetOf<String>()
+        val projection = arrayOf(
+            MediaStore.MediaColumns.RELATIVE_PATH,
+            MediaStore.Images.Media.DATE_TAKEN
+        )
+        val latestMap = mutableMapOf<String, Long>()
         resolver.query(uri, projection, null, null, null)?.use { c ->
-            val idx = c.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val idxPath = c.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val idxDate = c.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
             while (c.moveToNext()) {
-                val path = c.getString(idx) ?: continue
-                if (path.startsWith("${Environment.DIRECTORY_DCIM}/")) {
-                    val rest = path.removePrefix("${Environment.DIRECTORY_DCIM}/")
-                    val first = rest.substringBefore('/')
-                    if (first.length == 8 && first.all { it.isDigit() }) set.add(first)
+                val path = c.getString(idxPath) ?: continue
+                if (!path.startsWith("${Environment.DIRECTORY_DCIM}/")) continue
+                val rest = path.removePrefix("${Environment.DIRECTORY_DCIM}/")
+                val first = rest.substringBefore('/')
+                if (first.length == 8 && first.all { it.isDigit() }) {
+                    val dt = c.getLong(idxDate)
+                    val prev = latestMap[first]
+                    latestMap[first] = maxOf(prev ?: 0L, dt)
                 }
             }
         }
-        set.toList().sortedDescending()
+        if (latestMap.isEmpty()) {
+            // Fallback to name-based descending order
+            latestMap.keys.toList().sortedDescending()
+        } else {
+            latestMap.entries
+                .sortedWith(compareByDescending<Map.Entry<String, Long>> { it.value }
+                    .thenByDescending { it.key })
+                .map { it.key }
+        }
     } else {
         val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-        dcim.listFiles()?.filter { it.isDirectory && it.name.length == 8 && it.name.all { ch -> ch.isDigit() } }
-            ?.map { it.name }?.sortedDescending() ?: emptyList()
+        val dirs = dcim.listFiles()
+            ?.filter { it.isDirectory && it.name.length == 8 && it.name.all { ch -> ch.isDigit() } }
+            ?: emptyList()
+        if (dirs.isEmpty()) return emptyList()
+        dirs.map { dir ->
+            val latest = dir.listFiles()
+                ?.filter { f -> f.isFile }
+                ?.maxOfOrNull { it.lastModified() } ?: dir.lastModified()
+            dir.name to latest
+        }.sortedWith(compareByDescending<Pair<String, Long>> { it.second }
+            .thenByDescending { it.first })
+            .map { it.first }
     }
 }
 
