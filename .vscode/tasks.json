@@ -1,0 +1,100 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "gradlePath",
+      "type": "promptString",
+      "description": "Path to Gradle executable",
+      "default": "$HOME/opt/gradle/gradle-8.2/bin/gradle"
+    },
+    {
+      "id": "adbPath",
+      "type": "promptString",
+      "description": "Path to adb executable",
+      "default": "$HOME/Android/Sdk/platform-tools/adb"
+    },
+    {
+      "id": "deviceId",
+      "type": "promptString",
+      "description": "ADB device ID (leave empty to auto-detect or use ANDROID_SERIAL)",
+      "default": ""
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Build Debug (System Gradle)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleDebug | sed -n '1,160p'"
+      ],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "detail": "Assemble the Debug APK using system Gradle"
+    },
+    {
+      "label": "Build Release (System Gradle)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleRelease | sed -n '1,160p'"
+      ],
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Assemble the Release APK using system Gradle"
+    },
+    {
+      "label": "Install Debug App (Device)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -euo pipefail; APK_PATH=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/debug/app-debug.apk\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; if [ ! -f \"$APK_PATH\" ]; then echo \"APK not found: $APK_PATH. Run the build task first.\"; exit 2; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
+      ],
+      "dependsOn": ["Build Debug (System Gradle)"],
+      "problemMatcher": [],
+      "detail": "Installs the Debug APK to the specified device"
+    },
+    {
+      "label": "Install Release App (Device)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -euo pipefail; APK_DIR=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/release\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; APK_PATH=\"\"; if ls -1 \"$APK_DIR\"/*.apk >/dev/null 2>&1; then APK_PATH=\"$(ls -t \"$APK_DIR\"/*.apk | head -n1)\"; fi; if [ -z \"$APK_PATH\" ]; then echo \"No release APK found in $APK_DIR. Run the build task first.\"; exit 2; fi; if echo \"$APK_PATH\" | grep -q \"unsigned\"; then echo \"Found unsigned release APK: $APK_PATH. Configure release signing in app/build.gradle.kts or install the debug build instead.\"; exit 3; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
+      ],
+      "dependsOn": ["Build Release (System Gradle)"],
+      "problemMatcher": [],
+      "detail": "Installs the latest signed Release APK; warns if only unsigned present"
+    },
+    {
+      "label": "ADB: List Devices",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -e; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; \"$ADB\" devices -l"
+      ],
+      "problemMatcher": [],
+      "detail": "Lists connected ADB devices (uses input path or PATH fallback)"
+    }
+    {
+      "label": "Build + Install Debug",
+      "dependsOn": [
+        "Build Debug (System Gradle)",
+        "Install Debug App (Device)"
+      ],
+      "dependsOrder": "sequence"
+    },
+    {
+      "label": "Build + Install Release",
+      "dependsOn": [
+        "Build Release (System Gradle)",
+        "Install Release App (Device)"
+      ],
+      "dependsOrder": "sequence"
+    }
+  ]
+}

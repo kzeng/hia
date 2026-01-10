@@ -3,6 +3,12 @@ plugins {
     kotlin("android")
 }
 
+// Release signing via environment variables with fallback to debug signing
+val keystorePath: String? = System.getenv("ANDROID_KEYSTORE_PATH")
+val keystorePassword: String? = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val keyAliasEnv: String? = System.getenv("ANDROID_KEY_ALIAS")
+val keyPasswordEnv: String? = System.getenv("ANDROID_KEY_PASSWORD")
+
 android {
     compileSdk = 34
     namespace = "com.example.hia"
@@ -18,10 +24,25 @@ android {
         versionName = "1.0.3"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = keystorePath?.let { file(it) }
+            storePassword = keystorePassword
+            keyAlias = keyAliasEnv
+            keyPassword = keyPasswordEnv
+        }
+    }
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (
+                keystorePath != null &&
+                keystorePassword != null &&
+                keyAliasEnv != null &&
+                keyPasswordEnv != null
+            ) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 

@@ -304,17 +304,16 @@ private fun CameraPanel(
                 // 标准的圆形拍照按钮
                 Box(
                     modifier = Modifier
-                        .size(100.dp)
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 24.dp)
                 ) {
-                    IconButton(
+                    FloatingActionButton(
                         onClick = {
-                            if (!cameraGranted || !writeGranted) return@IconButton
+                            if (!cameraGranted || !writeGranted) return@FloatingActionButton
                             val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
                             val ts = (System.currentTimeMillis() / 1000).toString() // 10位秒时间戳
                             val filename = "$codePart-$ts.png"
-                            val capture = imageCapture ?: return@IconButton
+                            val capture = imageCapture ?: return@FloatingActionButton
                             capture.takePicture(
                                 cameraExecutor,
                                 object : ImageCapture.OnImageCapturedCallback() {
@@ -356,17 +355,15 @@ private fun CameraPanel(
                             )
                         },
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                MaterialTheme.colorScheme.primary,
-                                androidx.compose.foundation.shape.CircleShape
-                            )
+                            .size(88.dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ) {
                         Icon(
                             Icons.Filled.CameraAlt,
                             contentDescription = "拍摄",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                 }
