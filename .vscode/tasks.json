@@ -79,7 +79,7 @@
       ],
       "problemMatcher": [],
       "detail": "Lists connected ADB devices (uses input path or PATH fallback)"
-    }
+    },
     {
       "label": "Build + Install Debug",
       "dependsOn": [
