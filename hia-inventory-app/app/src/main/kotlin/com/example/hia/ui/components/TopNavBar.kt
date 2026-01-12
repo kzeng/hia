@@ -41,7 +41,7 @@ fun TopNavBar(navController: NavHostController) {
     ) {
         // App Logo - 直径适应顶部栏的高度
         Image(
-            painter = painterResource(id = R.drawable.logo),
+            painter = painterResource(id = R.drawable.app_logo),
             contentDescription = "App Logo",
             modifier = Modifier
                 .size(40.dp) // 顶部栏高度通常为64.dp，Logo直径设为40.dp适应高度

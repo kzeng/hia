@@ -1,139 +1,168 @@
 {
-  "version": "2.0.0",
-  "inputs": [
-    {
-      "id": "gradlePath",
-      "type": "promptString",
-      "description": "Path to Gradle executable",
-      "default": "$HOME/opt/gradle/gradle-8.2/bin/gradle"
-    },
-    {
-      "id": "adbPath",
-      "type": "promptString",
-      "description": "Path to adb executable",
-      "default": "$HOME/Android/Sdk/platform-tools/adb"
-    },
-    {
-      "id": "deviceId",
-      "type": "promptString",
-      "description": "ADB device ID (leave empty to auto-detect or use ANDROID_SERIAL)",
-      "default": ""
-    },
-    {
-      "id": "gitProxy",
-      "type": "promptString",
-      "description": "Git proxy URL (e.g. http://proxy.example.com:8080 or socks5h://host:1080)",
-      "default": ""
-    }
-  ],
-  "tasks": [
-    {
-      "label": "Build Debug (System Gradle)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleDebug | sed -n '1,160p'"
-      ],
-      "group": { "kind": "build", "isDefault": true },
-      "problemMatcher": [],
-      "detail": "Assemble the Debug APK using system Gradle"
-    },
-    {
-      "label": "Build Release (System Gradle)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleRelease | sed -n '1,160p'"
-      ],
-      "group": "build",
-      "problemMatcher": [],
-      "detail": "Assemble the Release APK using system Gradle"
-    },
-    {
-      "label": "Install Debug App (Device)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -euo pipefail; APK_PATH=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/debug/app-debug.apk\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; if [ ! -f \"$APK_PATH\" ]; then echo \"APK not found: $APK_PATH. Run the build task first.\"; exit 2; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
-      ],
-      "dependsOn": ["Build Debug (System Gradle)"],
-      "problemMatcher": [],
-      "detail": "Installs the Debug APK to the specified device"
-    },
-    {
-      "label": "Install Release App (Device)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -euo pipefail; APK_DIR=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/release\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; APK_PATH=\"\"; if ls -1 \"$APK_DIR\"/*.apk >/dev/null 2>&1; then APK_PATH=\"$(ls -t \"$APK_DIR\"/*.apk | head -n1)\"; fi; if [ -z \"$APK_PATH\" ]; then echo \"No release APK found in $APK_DIR. Run the build task first.\"; exit 2; fi; if echo \"$APK_PATH\" | grep -q \"unsigned\"; then echo \"Found unsigned release APK: $APK_PATH. Configure release signing in app/build.gradle.kts or install the debug build instead.\"; exit 3; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
-      ],
-      "dependsOn": ["Build Release (System Gradle)"],
-      "problemMatcher": [],
-      "detail": "Installs the latest signed Release APK; warns if only unsigned present"
-    },
-    {
-      "label": "ADB: List Devices",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; \"$ADB\" devices -l"
-      ],
-      "problemMatcher": [],
-      "detail": "Lists connected ADB devices (uses input path or PATH fallback)"
-    },
-    {
-      "label": "Build + Install Debug",
-      "dependsOn": [
-        "Build Debug (System Gradle)",
-        "Install Debug App (Device)"
-      ],
-      "dependsOrder": "sequence"
-    },
-    {
-      "label": "Build + Install Release",
-      "dependsOn": [
-        "Build Release (System Gradle)",
-        "Install Release App (Device)"
-      ],
-      "dependsOrder": "sequence"
-    },
-    {
-      "label": "Git: Set Proxy (Global)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; if [ -z \"${input:gitProxy}\" ]; then echo \"Proxy URL is empty. Example: http://proxy.example.com:8080\"; exit 2; fi; git config --global http.proxy \"${input:gitProxy}\"; git config --global https.proxy \"${input:gitProxy}\"; git config --global \"http.https://github.com/.proxy\" \"${input:gitProxy}\"; git config --global -l | sed -n '1,200p'"
-      ],
-      "problemMatcher": [],
-      "detail": "Sets Git global proxy (http/https and GitHub host-specific)"
-    },
-    {
-      "label": "Git: Unset Proxy (Global)",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; git config --global --unset http.proxy || true; git config --global --unset https.proxy || true; git config --global --unset \"http.https://github.com/.proxy\" || true; git config --global -l | sed -n '1,200p'"
-      ],
-      "problemMatcher": [],
-      "detail": "Unsets Git global proxy settings"
-    },
-    {
-      "label": "Git: Switch Remote to SSH over 443",
-      "type": "shell",
-      "command": "bash",
-      "args": [
-        "-lc",
-        "set -e; mkdir -p \"$HOME/.ssh\"; chmod 700 \"$HOME/.ssh\"; if [ ! -f \"$HOME/.ssh/id_ed25519\" ]; then ssh-keygen -t ed25519 -N '' -f \"$HOME/.ssh/id_ed25519\" -C 'vs-code'; fi; cat \"$HOME/.ssh/id_ed25519.pub\"; printf '\nAdd the above key to GitHub (Settings → SSH keys), then press Enter to continue...'; read _; cat > \"$HOME/.ssh/config\" <<'EOF'\nHost github.com\n  HostName ssh.github.com\n  Port 443\n  User git\n  IdentityFile ~/.ssh/id_ed25519\n  TCPKeepAlive yes\n  ServerAliveInterval 60\nEOF\nchmod 600 \"$HOME/.ssh/config\"; cd \"${workspaceFolder}\"; git remote set-url origin git@github.com:kzeng/hia.git; git push origin main | sed -n '1,200p'"
-      ],
-      "problemMatcher": [],
-      "detail": "Configures SSH to use port 443 and pushes via SSH"
-    }
-  ]
+	"version": "2.0.0",
+	"inputs": [
+		{
+			"id": "gradlePath",
+			"type": "promptString",
+			"description": "Path to Gradle executable",
+			"default": "$HOME/opt/gradle/gradle-8.2/bin/gradle"
+		},
+		{
+			"id": "adbPath",
+			"type": "promptString",
+			"description": "Path to adb executable",
+			"default": "$HOME/Android/Sdk/platform-tools/adb"
+		},
+		{
+			"id": "deviceId",
+			"type": "promptString",
+			"description": "ADB device ID (leave empty to auto-detect or use ANDROID_SERIAL)",
+			"default": ""
+		},
+		{
+			"id": "gitProxy",
+			"type": "promptString",
+			"description": "Git proxy URL (e.g. http://proxy.example.com:8080 or socks5h://host:1080)",
+			"default": ""
+		}
+	],
+	"tasks": [
+		{
+			"label": "Build Debug (System Gradle)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleDebug | sed -n '1,160p'"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"detail": "Assemble the Debug APK using system Gradle"
+		},
+		{
+			"label": "Build Release (System Gradle)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleRelease | sed -n '1,160p'"
+			],
+			"group": "build",
+			"problemMatcher": [],
+			"detail": "Assemble the Release APK using system Gradle"
+		},
+		{
+			"label": "Install Debug App (Device)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -euo pipefail; APK_PATH=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/debug/app-debug.apk\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; if [ ! -f \"$APK_PATH\" ]; then echo \"APK not found: $APK_PATH. Run the build task first.\"; exit 2; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
+			],
+			"dependsOn": [
+				"Build Debug (System Gradle)"
+			],
+			"problemMatcher": [],
+			"detail": "Installs the Debug APK to the specified device"
+		},
+		{
+			"label": "Install Release App (Device)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -euo pipefail; APK_DIR=\"${workspaceFolder}/hia-inventory-app/app/build/outputs/apk/release\"; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; DEVICE_ID=\"${input:deviceId}\"; if [ -z \"$DEVICE_ID\" ]; then DEVICE_ID=\"${ANDROID_SERIAL:-}\"; fi; if [ -z \"$DEVICE_ID\" ]; then COUNT=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{c++} END{print c+0}\"); if [ \"$COUNT\" -eq 1 ]; then DEVICE_ID=$($ADB devices | awk \"NR>1 && \\$2==\\\"device\\\"{print \\$1; exit}\"); else echo \"Multiple or no devices detected. Set deviceId input or ANDROID_SERIAL. Connected devices:\"; $ADB devices; exit 1; fi; fi; APK_PATH=\"\"; if ls -1 \"$APK_DIR\"/*.apk >/dev/null 2>&1; then APK_PATH=\"$(ls -t \"$APK_DIR\"/*.apk | head -n1)\"; fi; if [ -z \"$APK_PATH\" ]; then echo \"No release APK found in $APK_DIR. Run the build task first.\"; exit 2; fi; if echo \"$APK_PATH\" | grep -q \"unsigned\"; then echo \"Found unsigned release APK: $APK_PATH. Configure release signing in app/build.gradle.kts or install the debug build instead.\"; exit 3; fi; \"$ADB\" -s \"$DEVICE_ID\" install -r \"$APK_PATH\""
+			],
+			"dependsOn": [
+				"Build Release (System Gradle)"
+			],
+			"problemMatcher": [],
+			"detail": "Installs the latest signed Release APK; warns if only unsigned present"
+		},
+		{
+			"label": "ADB: List Devices",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; ADB=\"${input:adbPath}\"; if [ -z \"$ADB\" ] || [ ! -x \"$ADB\" ]; then if command -v adb >/dev/null 2>&1; then ADB=\"$(command -v adb)\"; else echo \"adb not found. Set input \\\"adbPath\\\" or install Android platform-tools.\"; exit 127; fi; fi; \"$ADB\" devices -l"
+			],
+			"problemMatcher": [],
+			"detail": "Lists connected ADB devices (uses input path or PATH fallback)"
+		},
+		{
+			"label": "Build + Install Debug",
+			"dependsOn": [
+				"Build Debug (System Gradle)",
+				"Install Debug App (Device)"
+			],
+			"dependsOrder": "sequence"
+		},
+		{
+			"label": "Build + Install Release",
+			"dependsOn": [
+				"Build Release (System Gradle)",
+				"Install Release App (Device)"
+			],
+			"dependsOrder": "sequence"
+		},
+		{
+			"label": "Git: Set Proxy (Global)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; if [ -z \"${input:gitProxy}\" ]; then echo \"Proxy URL is empty. Example: http://proxy.example.com:8080\"; exit 2; fi; git config --global http.proxy \"${input:gitProxy}\"; git config --global https.proxy \"${input:gitProxy}\"; git config --global \"http.https://github.com/.proxy\" \"${input:gitProxy}\"; git config --global -l | sed -n '1,200p'"
+			],
+			"problemMatcher": [],
+			"detail": "Sets Git global proxy (http/https and GitHub host-specific)"
+		},
+		{
+			"label": "Git: Unset Proxy (Global)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; git config --global --unset http.proxy || true; git config --global --unset https.proxy || true; git config --global --unset \"http.https://github.com/.proxy\" || true; git config --global -l | sed -n '1,200p'"
+			],
+			"problemMatcher": [],
+			"detail": "Unsets Git global proxy settings"
+		},
+		{
+			"label": "Git: Switch Remote to SSH over 443",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; mkdir -p \"$HOME/.ssh\"; chmod 700 \"$HOME/.ssh\"; if [ ! -f \"$HOME/.ssh/id_ed25519\" ]; then ssh-keygen -t ed25519 -N '' -f \"$HOME/.ssh/id_ed25519\" -C 'vs-code'; fi; cat \"$HOME/.ssh/id_ed25519.pub\"; printf '\nAdd the above key to GitHub (Settings → SSH keys), then press Enter to continue...'; read _; cat > \"$HOME/.ssh/config\" <<'EOF'\nHost github.com\n  HostName ssh.github.com\n  Port 443\n  User git\n  IdentityFile ~/.ssh/id_ed25519\n  TCPKeepAlive yes\n  ServerAliveInterval 60\nEOF\nchmod 600 \"$HOME/.ssh/config\"; cd \"${workspaceFolder}\"; git remote set-url origin git@github.com:kzeng/hia.git; git push origin main | sed -n '1,200p'"
+			],
+			"problemMatcher": [],
+			"detail": "Configures SSH to use port 443 and pushes via SSH"
+		},
+		{
+			"label": "Build Debug (System Gradle)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; \"${input:gradlePath}\" -p \"${workspaceFolder}/hia-inventory-app\" --no-daemon --max-workers=8 assembleDebug | sed -n '1,160p'"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Build Debug (System Gradle)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"set -e; \"$HOME/opt/gradle/gradle-8.2/bin/gradle\" -p \"/home/zengkai/Codes/hia/hia-inventory-app\" --no-daemon --max-workers=8 assembleDebug | sed -n '1,200p'"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
 }

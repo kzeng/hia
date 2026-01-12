@@ -19,9 +19,9 @@ android {
         targetSdk = 33
         versionCode = 1
 
-        //kzeng changed to 1.0.1
+        //kzeng changed to 1.0.6
         // versionName = "1.0"
-        versionName = "1.0.3"
+        versionName = "1.0.6"
     }
 
     signingConfigs {
