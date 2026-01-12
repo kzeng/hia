@@ -248,3 +248,83 @@ PNG 拍摄提速方案
 - 后续动作
   - 若当前为 PNG 管线：按“PNG 拍摄提速方案”迁移或改为后台转码。
   - 若为 JPEG 直写：确保 jpegQuality≈85–95，并兼容命名/上传逻辑的 .jpg。
+
+----------------------------
+
+下面是项目的“交接用”环境与目标机信息总结，便于在其他机器上编译运行与上线。
+
+开发环境与工具链
+- 项目类型：Android 应用（Kotlin + Jetpack Compose）
+- 构建系统与版本
+  - Gradle: 8.2（见 hia-inventory-app/gradle/wrapper/gradle-wrapper.properties）
+  - Android Gradle Plugin: 8.2.2（见 hia-inventory-app/build.gradle.kts）
+  - Kotlin: 1.9.23（见 hia-inventory-app/build.gradle.kts）
+  - JDK 要求：AGP 8.2 需 JDK 17（即使源/目标兼容设置为 1.8）
+  - Java 源/目标兼容：1.8（见 hia-inventory-app/app/build.gradle.kts）
+- Android SDK
+  - compileSdk: 34
+  - targetSdk: 33
+  - minSdk: 23（以上均见 hia-inventory-app/app/build.gradle.kts）
+- Compose
+  - Compose Compiler: 1.5.12
+  - Compose BOM: 2024.02.01（见 hia-inventory-app/app/build.gradle.kts）
+- 应用信息
+  - applicationId/namespace：com.example.hia
+  - versionName: 1.0.3，versionCode: 1（见 hia-inventory-app/app/build.gradle.kts）
+- 主要依赖
+  - Material3、Compose UI/Foundation、Navigation Compose 2.7.6
+  - CameraX 1.3.2、Coil 2.4.0、DataStore 1.0.0
+  - Apache Commons Net (FTP) 3.9.0、Google Material 1.12.0
+
+签名与发布
+- Release 签名通过环境变量配置（未设置则回落到 debug 签名）
+  - ANDROID_KEYSTORE_PATH、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD
+  - 见 build.gradle.kts
+
+VS Code 集成与任务
+- 任务文件：.vscode/tasks.json（含 Build/Install/ADB/Git 相关任务）
+- 说明：任务使用“系统 Gradle”路径。Windows 下可改用项目包装器 gradlew.bat，或在 tasks.json 中配置本机 Gradle 可执行路径。
+
+Windows 下构建与安装（命令行）
+````bat
+:: 在工作区根目录：c:\Users\zen82746.LI\Desktop\hia
+:: Debug 构建
+.\hia-inventory-app\gradlew.bat -p ".\hia-inventory-app" assembleDebug
+
+:: 安装到已连接设备
+.\hia-inventory-app\gradlew.bat -p ".\hia-inventory-app" installDebug
+
+:: 列出设备
+adb devices
+````
+
+运行时权限与平台行为
+- Manifest 权限（见 hia-inventory-app/app/src/main/AndroidManifest.xml）
+  - CAMERA、INTERNET
+  - READ_MEDIA_IMAGES（Android 13+）
+  - READ_EXTERNAL_STORAGE（≤ Android 12，maxSdkVersion=32）
+  - WRITE_EXTERNAL_STORAGE（≤ Android 9，10+ 使用 MediaStore）
+- 存储/媒体
+  - Android 10+ 使用 MediaStore 读写/删除图片（删除经 MediaStore.createDeleteRequest）
+  - 操作 DCIM/yyyyMMdd 目录；支持图片浏览与放大
+- FTP
+  - 设置页配置服务器、端口、账号、密码；DataStore 持久化；支持连接测试与目录上传
+
+目标设备与环境
+- Android 6.0+（minSdk 23），推荐 Android 13（targetSdk 33，compile 34）
+- 需有后置摄像头、可用存储空间、网络连接（FTP）
+- 首次启动授予 CAMERA/存储 等权限；上传前在设置页测试 FTP 连接
+
+交接与新机初始化清单
+- 安装 JDK 17、Android SDK 与 Platform Tools（adb）
+- 使用项目自带 gradlew.bat 或安装 Gradle 8.2
+- 如需发布签名版，在系统环境变量设置 ANDROID_KEYSTORE_* 四项
+- VS Code 中检查 tasks.json 的 Gradle/adb 路径是否符合本机
+- 首次运行后在设置页填写 FTP 信息并“测试连接”
+
+快速定位关键信息的文件
+- hia-inventory-app/build.gradle.kts（AGP、Kotlin、插件）
+- hia-inventory-app/app/build.gradle.kts（SDK 等级、Compose、依赖、版本、签名）
+- hia-inventory-app/gradle/wrapper/gradle-wrapper.properties（Gradle 版本）
+- hia-inventory-app/app/src/main/AndroidManifest.xml（权限/组件）
+- .vscode/tasks.json（构建/安装任务与工具路径）
