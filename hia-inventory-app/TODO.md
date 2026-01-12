@@ -10,7 +10,12 @@
   Disk: used/total
   操作系统：
 
-
+app/src/main/res/
+ ├─ mipmap-mdpi/ic_launcher.png
+ ├─ mipmap-hdpi/ic_launcher.png
+ ├─ mipmap-xhdpi/ic_launcher.png
+ ├─ mipmap-xxhdpi/ic_launcher.png
+ └─ mipmap-xxxhdpi/ic_launcher.png
 
 # Featues
 ## 图书盘点
