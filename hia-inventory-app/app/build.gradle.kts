@@ -21,7 +21,7 @@ android {
 
         //kzeng changed to 1.0.6
         // versionName = "1.0"
-        versionName = "1.0.6"
+        versionName = "1.0.7"
     }
 
     signingConfigs {

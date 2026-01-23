@@ -220,27 +220,29 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
             //get from build.gradle.kts , NOT hardcode here
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             // Text("版本：${packageInfo.versionName} (${packageInfo.versionCode})")
-            Text("版本：${packageInfo.versionName}")
 
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    if (checkingUpdate) return@Button
-                    checkingUpdate = true
-                    scope.launch {
-                        val result = UpdateManager.checkForUpdates(context)
-                        val msg = when (result) {
-                            is UpdateResult.UpToDate -> "当前已是最新版本"
-                            is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
-                            is UpdateResult.Error -> "更新失败：${result.reason}"
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("版本：${packageInfo.versionName}")
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    onClick = {
+                        if (checkingUpdate) return@TextButton
+                        checkingUpdate = true
+                        scope.launch {
+                            val result = UpdateManager.checkForUpdates(context)
+                            val msg = when (result) {
+                                is UpdateResult.UpToDate -> "当前已是最新版本"
+                                is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
+                                is UpdateResult.Error -> "更新失败：${result.reason}"
+                            }
+                            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+                            checkingUpdate = false
                         }
-                        snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
-                        checkingUpdate = false
-                    }
-                },
-                enabled = !checkingUpdate
-            ) {
-                Text(if (checkingUpdate) "检查中..." else "检查更新")
+                    },
+                    enabled = !checkingUpdate
+                ) {
+                    Text(if (checkingUpdate) "检查中..." else "检查更新")
+                }
             }
 
             val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }

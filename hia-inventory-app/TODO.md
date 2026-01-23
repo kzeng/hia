@@ -258,6 +258,14 @@ PNG 拍摄提速方案
 - 构建系统与版本
   - Gradle: 8.2（见 hia-inventory-app/gradle/wrapper/gradle-wrapper.properties）
   - Android Gradle Plugin: 8.2.2（见 hia-inventory-app/build.gradle.kts）
+  
+构建与安装命令（当前验证通过）
+- Debug 构建（在 hia-inventory-app 目录下执行）：
+  - ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
+- 也可以使用项目自带 Gradle Wrapper：
+  - ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew --no-daemon assembleDebug
+- 安装 Debug APK 到设备（在 hia-inventory-app 目录下执行）：
+  - ./gradlew installDebug
   - Kotlin: 1.9.23（见 hia-inventory-app/build.gradle.kts）
   - JDK 要求：AGP 8.2 需 JDK 17（即使源/目标兼容设置为 1.8）
   - Java 源/目标兼容：1.8（见 hia-inventory-app/app/build.gradle.kts）

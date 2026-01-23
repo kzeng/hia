@@ -3,6 +3,7 @@ package com.example.hia
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -20,7 +21,7 @@ object UpdateManager {
         "https://api.github.com/repos/kzeng/hia/releases/latest"
 
     suspend fun checkForUpdates(context: Context): UpdateResult = withContext(Dispatchers.IO) {
-        val currentVersion = BuildConfig.VERSION_NAME
+        val currentVersion = getCurrentVersion(context)
 
         val latestJson = fetchLatestReleaseJson() ?: return@withContext UpdateResult.Error("无法获取版本信息")
         val latestVersion = latestJson.optString("tag_name")
@@ -44,6 +45,24 @@ object UpdateManager {
 
         val ok = installApk(context, apkFile)
         if (ok) UpdateResult.Updated(latestVersion) else UpdateResult.Error("触发安装失败")
+    }
+
+    private fun getCurrentVersion(context: Context): String {
+        return try {
+            val pm = context.packageManager
+            val packageName = context.packageName
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    packageName,
+                    PackageManager.PackageInfoFlags.of(0)
+                ).versionName ?: "0.0.0"
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
+            }
+        } catch (_: Exception) {
+            "0.0.0"
+        }
     }
 
     private fun fetchLatestReleaseJson(): JSONObject? {
