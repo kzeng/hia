@@ -229,14 +229,19 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
                         if (checkingUpdate) return@TextButton
                         checkingUpdate = true
                         scope.launch {
-                            val result = UpdateManager.checkForUpdates(context)
-                            val msg = when (result) {
-                                is UpdateResult.UpToDate -> "当前已是最新版本"
-                                is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
-                                is UpdateResult.Error -> "更新失败：${result.reason}"
+                            try {
+                                val result = UpdateManager.checkForUpdates(context)
+                                val msg = when (result) {
+                                    is UpdateResult.UpToDate -> "当前已是最新版本"
+                                    is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
+                                    is UpdateResult.Error -> "更新失败：${result.reason}"
+                                }
+                                checkingUpdate = false
+                                snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+                            } catch (e: Exception) {
+                                checkingUpdate = false
+                                snackbarHostState.showSnackbar("检查更新失败", duration = SnackbarDuration.Short)
                             }
-                            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
-                            checkingUpdate = false
                         }
                     },
                     enabled = !checkingUpdate
