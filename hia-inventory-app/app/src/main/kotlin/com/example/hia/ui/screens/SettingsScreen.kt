@@ -38,6 +38,8 @@ import com.example.hia.FtpPreferences
 import androidx.compose.ui.platform.LocalContext
 import com.example.hia.SystemInfo
 import com.example.hia.SystemInfoProvider
+import com.example.hia.UpdateResult
+import com.example.hia.UpdateManager
 import kotlinx.coroutines.Dispatchers
 import com.example.hia.ui.components.TopNavBar
 import kotlinx.coroutines.launch
@@ -69,7 +71,7 @@ fun SettingsScreen(navController: NavHostController) {
             FtpConfigCard(modifier = Modifier.weight(0.35f), snackbarHostState = snackbarHostState)
 
             // 右侧：系统/APP 信息
-            InfoPanel(modifier = Modifier.weight(0.65f))
+            InfoPanel(modifier = Modifier.weight(0.65f), snackbarHostState = snackbarHostState)
         }
     }
 }
@@ -166,14 +168,16 @@ private fun FtpConfigCard(modifier: Modifier = Modifier, snackbarHostState: Snac
 }
 
 @Composable
-private fun InfoPanel(modifier: Modifier = Modifier) {
+private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: SnackbarHostState) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             var sys by remember { mutableStateOf<SystemInfo?>(null) }
             var loading by remember { mutableStateOf(true) }
             var media by remember { mutableStateOf<MediaInfo?>(null) }
             var mediaLoading by remember { mutableStateOf(true) }
+            var checkingUpdate by remember { mutableStateOf(false) }
 
             LaunchedEffect(Unit) {
                 sys = withContext(Dispatchers.IO) {
@@ -217,6 +221,27 @@ private fun InfoPanel(modifier: Modifier = Modifier) {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             // Text("版本：${packageInfo.versionName} (${packageInfo.versionCode})")
             Text("版本：${packageInfo.versionName}")
+
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    if (checkingUpdate) return@Button
+                    checkingUpdate = true
+                    scope.launch {
+                        val result = UpdateManager.checkForUpdates(context)
+                        val msg = when (result) {
+                            is UpdateResult.UpToDate -> "当前已是最新版本"
+                            is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
+                            is UpdateResult.Error -> "更新失败：${result.reason}"
+                        }
+                        snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+                        checkingUpdate = false
+                    }
+                },
+                enabled = !checkingUpdate
+            ) {
+                Text(if (checkingUpdate) "检查中..." else "检查更新")
+            }
 
             val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
             Text("博库信息技术(武汉)有限公司©$currentYear")
