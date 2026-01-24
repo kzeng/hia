@@ -221,8 +221,16 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             // Text("版本：${packageInfo.versionName} (${packageInfo.versionCode})")
 
+            // 添加下载进度状态变量
+            var downloadProgress by remember { mutableStateOf(-1) } // -1表示没有下载，0-100表示进度
+            
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("版本：${packageInfo.versionName}")
+                // 显示下载进度
+                if (downloadProgress >= 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("下载进度: $downloadProgress%", color = MaterialTheme.colorScheme.primary)
+                }
                 Spacer(Modifier.width(8.dp))
                 TextButton(
                     onClick = {
@@ -231,16 +239,67 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
                         scope.launch {
                             try {
                                 val result = UpdateManager.checkForUpdates(context)
-                                val msg = when (result) {
-                                    is UpdateResult.UpToDate -> "当前已是最新版本"
-                                    is UpdateResult.Updated -> "已下载并触发安装：${result.newVersion}"
-                                    is UpdateResult.Error -> "更新失败：${result.reason}"
-                                }
                                 checkingUpdate = false
-                                snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+                                when (result) {
+                                    is UpdateResult.UpToDate -> {
+                                        snackbarHostState.showSnackbar("当前已是最新版本", duration = SnackbarDuration.Short)
+                                    }
+                                    is UpdateResult.UpdateAvailable -> {
+                                        // 重置下载进度
+                                        downloadProgress = 0
+                                        snackbarHostState.showSnackbar("发现新版本 ${result.newVersion}，开始下载...", duration = SnackbarDuration.Long)
+                                        // 在后台下载并安装
+                                        scope.launch {
+                                            try {
+                                                val installResult = UpdateManager.downloadAndInstall(
+                                                    context,
+                                                    result.downloadUrl,
+                                                    onProgress = { progress ->
+                                                        // 在UI线程更新进度
+                                                        scope.launch {
+                                                            downloadProgress = progress
+                                                        }
+                                                    }
+                                                )
+                                                downloadProgress = -1 // 下载完成，隐藏进度
+                                                val msg = when (installResult) {
+                                                    is UpdateResult.Updated -> "下载完成！请查看系统安装提示"
+                                                    is UpdateResult.UpdatedWithPath -> {
+                                                        val sizeMB = String.format("%.2f", installResult.apkSize / (1024.0 * 1024.0))
+                                                        "下载完成！APK路径：${installResult.apkPath} (${sizeMB} MB)。请查看系统安装提示"
+                                                    }
+                                                    is UpdateResult.Error -> "下载/安装失败：${installResult.reason}"
+                                                    is UpdateResult.ErrorWithPath -> {
+                                                        val sizeMB = String.format("%.2f", installResult.apkSize / (1024.0 * 1024.0))
+                                                        "下载/安装失败：${installResult.reason}。APK已下载到：${installResult.apkPath} (${sizeMB} MB)，请手动安装"
+                                                    }
+                                                    else -> "未知错误"
+                                                }
+                                                snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long)
+                                            } catch (e: Exception) {
+                                                downloadProgress = -1
+                                                snackbarHostState.showSnackbar("下载失败：${e.message}", duration = SnackbarDuration.Long)
+                                            }
+                                        }
+                                    }
+                                    is UpdateResult.Error -> {
+                                        snackbarHostState.showSnackbar("更新失败：${result.reason}", duration = SnackbarDuration.Short)
+                                    }
+                                    is UpdateResult.Updated -> {
+                                        snackbarHostState.showSnackbar("已触发安装", duration = SnackbarDuration.Short)
+                                    }
+                                    is UpdateResult.UpdatedWithPath -> {
+                                        // This shouldn't happen from checkForUpdates, but handle it just in case
+                                        snackbarHostState.showSnackbar("更新完成，APK路径: ${result.apkPath}", duration = SnackbarDuration.Short)
+                                    }
+                                    is UpdateResult.ErrorWithPath -> {
+                                        // This shouldn't happen from checkForUpdates, but handle it just in case
+                                        snackbarHostState.showSnackbar("更新失败: ${result.reason}, APK路径: ${result.apkPath}", duration = SnackbarDuration.Short)
+                                    }
+                                }
                             } catch (e: Exception) {
                                 checkingUpdate = false
-                                snackbarHostState.showSnackbar("检查更新失败", duration = SnackbarDuration.Short)
+                                snackbarHostState.showSnackbar("检查更新失败：${e.message}", duration = SnackbarDuration.Short)
                             }
                         }
                     },

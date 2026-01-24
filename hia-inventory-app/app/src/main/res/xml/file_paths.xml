@@ -3,4 +3,10 @@
     <cache-path
         name="apk_cache"
         path="." />
+    <external-files-path
+        name="apk_external"
+        path="." />
+    <external-path
+        name="apk_downloads"
+        path="Download/" />
 </paths>
