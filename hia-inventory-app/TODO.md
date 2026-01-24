@@ -19,7 +19,7 @@ app/src/main/res/
 
 # Featues
 ## 图书盘点
-- *拍照成功后，以Snackbar方式给一个简短的提示。例如“照片已保存”或“拍照成功” ；持续时间：使用 SnackbarDuration.Short（约 3 秒）
+- *拍照成功后，以Snackbar方式给一个简短的提示。例如"照片已保存"或"拍照成功" ；持续时间：使用 SnackbarDuration.Short（约 3 秒）
 
 
 ## 照片管理
@@ -60,16 +60,16 @@ app/src/main/res/
 
 --------------------
 
-图书盘点页面左栏 新增一个参数：架层 ：如：03  两位数字，范围：(01-99) 放在‘点位号’后面配置
-拍照图片的命名规则(新的)： 如 0102030104103-1751422638.png, 其中‘-’ 前半部分0102030104103表示  楼层、区域、架号、正反面号、列号、点位号、架层； ‘-’ 后半部分1751422638表示时间戳。
+图书盘点页面左栏 新增一个参数：架层 ：如：03  两位数字，范围：(01-99) 放在'点位号'后面配置
+拍照图片的命名规则(新的)： 如 0102030104103-1751422638.png, 其中'-' 前半部分0102030104103表示  楼层、区域、架号、正反面号、列号、点位号、架层； '-' 后半部分1751422638表示时间戳。
 
 所以 文件命名预览 这里也需要相应修改， 点位号后面多了两位数字(架层)， 如： 0102030104103-<timestamp>.png
 
 照片保存路径名也需要相应修改：
 pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位} // book // {时间戳: 照片文件名15至24位} //   {照片文件名第11位}.png
-相当于’默认固定摄像头ID 01‘ 位置 被 ’架层‘ 取代。 时间戳往后偏移2位。
+相当于'默认固定摄像头ID 01' 位置 被 '架层' 取代。 时间戳往后偏移2位。
 
-图片大图上的详情问题也可能需要修改，增加 ’架层‘， 时间戳往后偏移2位再解析。
+图片大图上的详情问题也可能需要修改，增加 '架层'， 时间戳往后偏移2位再解析。
 
 
 
@@ -80,11 +80,11 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
 
 
 # Optimize
-测试发现拍照的速度有点慢，从点击拍照到弹出’照片已保存‘消息，大约需要2-3秒， 这里可能包含自动对焦和写文件的过程总时间。 
+测试发现拍照的速度有点慢，从点击拍照到弹出'照片已保存'消息，大约需要2-3秒， 这里可能包含自动对焦和写文件的过程总时间。 
 拍照逻辑这一块是否存在优化的可能？
 
 拍照速度优化：
-可以明显提速，关键是避免“YUV→Bitmap→PNG”的双重编码，并让 CameraX 直接把照片写进 MediaStore（JPEG）。另外启用最小延迟模式、适当降低分辨率也会加速对焦/曝光等待与写盘。
+可以明显提速，关键是避免"YUV→Bitmap→PNG"的双重编码，并让 CameraX 直接把照片写进 MediaStore（JPEG）。另外启用最小延迟模式、适当降低分辨率也会加速对焦/曝光等待与写盘。
 
 建议改动（主打速度的方案）
 
@@ -110,14 +110,14 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
   - PNG 支持透明通道；JPEG 通常具备 EXIF、旋转标记、缩略图等。
 
 结论与建议
-- 默认：使用 JPEG（jpegQuality≈85–95），后缀 .jpg，获得更好的“时空效率”（更快、更小）。
+- 默认：使用 JPEG（jpegQuality≈85–95），后缀 .jpg，获得更好的"时空效率"（更快、更小）。
 - 仅当需要无损或透明通道时使用 PNG。
 - 若业务强制 PNG：降低分辨率或后台异步转 PNG；拍摄当下仍建议先保存 JPEG 以提速。
 
 落地到本应用
 - 拍照：ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY + 直接写 MediaStore（JPEG），jpegQuality≈90。
 - 命名/解析/上传：优先兼容 .jpg；如需保留 .png，两个后缀均支持。
-- 设置项：新增“保存格式（JPG/PNG）”并在说明中提示性能差异。
+- 设置项：新增"保存格式（JPG/PNG）"并在说明中提示性能差异。
 
 # ISSUES
 
@@ -125,13 +125,13 @@ pic//01（默认固定）+ {照片文件名前10位} + {照片文件名12-13位}
 ## 图书盘点
 <!-- ...existing content... -->
 
-### 左侧“文件夹列表”可视性与滚动优化
+### 左侧"文件夹列表"可视性与滚动优化
 问题：当文件夹很多时，非滚动容器（如普通 Column）会导致超出视口的项不可见。
 
 方案（Compose + M3）：
 1) 使用 LazyColumn + rememberLazyListState，天然虚拟化与垂直滚动；确保 Modifier.fillMaxHeight().
 2) 顶部加入搜索框（按 yyyymmdd 模糊过滤），减少列表长度。
-3) 按月份分组并使用 stickyHeader 显示“2026-01”等分组标题，提升可扫读性。
+3) 按月份分组并使用 stickyHeader 显示"2026-01"等分组标题，提升可扫读性。
 4) 可选：叠加自定义细窄滚动条（Overlay），或集成第三方 FastScroller（Compose）以快速拖拽。
 5) 交互：选中项保持可见（onSelect 后调用 animateScrollToItem），长按弹出菜单（删除/上传）。
 6) 状态：记住滚动位置（firstVisibleIndex/offset），返回时恢复；避免闪烁。
@@ -185,8 +185,8 @@ suspend fun ensureVisible(listState: LazyListState, index: Int) {
 ```
 
 依赖建议：
-- 若需“拖拽快滑”手感，考虑引入 FastScroller（Compose 第三方库），仅用于左栏；保持 M3 主题色彩。
-- 不引库时，使用 Overlay 细滚动条 + 点击跳转“月份索引”按钮（浮动侧栏）。
+- 若需"拖拽快滑"手感，考虑引入 FastScroller（Compose 第三方库），仅用于左栏；保持 M3 主题色彩。
+- 不引库时，使用 Overlay 细滚动条 + 点击跳转"月份索引"按钮（浮动侧栏）。
 
 性能要点：
 - LazyColumn items 使用稳定 key（文件夹路径/日期）。
@@ -208,131 +208,162 @@ suspend fun ensureVisible(listState: LazyListState, index: Int) {
 
 # Optimize
 PNG 拍摄提速方案
-- 默认方案（异步转码，提升“时间效率”）
+- 默认方案（异步转码，提升"时间效率"）
   - 拍摄：CameraX ImageCapture 使用 CAPTURE_MODE_MINIMIZE_LATENCY，直接保存 JPEG 到 MediaStore；拍后立刻弹 Snackbar（≈1 秒内）。
   - 转码：WorkManager 后台将 JPEG 转成 PNG，并按命名/路径规则移动与重命名；完成后更新列表并（可选）删除原 JPEG。
   - 实现要点：
     - 复用 YuvToRgbConverter/Bitmap，避免每次分配；转码用 IO 与 Default Dispatcher，禁止阻塞主线程。
-    - 进度：在“照片管理”页显示后台队列与进度；失败自动重试（指数退避）。
+    - 进度：在"照片管理"页显示后台队列与进度；失败自动重试（指数退避）。
     - 上传：当 PNG 就绪后再入队上传；支持增量续传。
-- 直出 PNG（业务强制 PNG 时）
-  - 分辨率：降低到 1280×960 或 1600×1200（4:3），显著缩短编码与写盘。
-  - NDK：libyuv 做 YUV_420_888→ARGB 加速；libpng 编码，设置 compressionLevel=1–3、FILTER_NONE（优先速度）。
-  - 管线与内存：
-    - 预分配与复用 DirectByteBuffer/ByteArrayOutputStream；避免拷贝链路（YUV→RGB→PNG 流式写入 FileOutputStream）。
-    - 按批写盘，使用 MediaStore is_pending 标记，完成后清除；避免 UI 等待。
-  - 线程：编码在单独线程池执行；主线程仅负责快照与提示。
-- 共同优化
-  - 目标比例 4:3；对焦/曝光使用 CAPTURE_MODE_MINIMIZE_LATENCY。
-  - 禁止在 UI 线程执行 PNG 压缩；所有重任务走后台。
-  - 错误与回退：若 PNG 转码失败，保留 JPEG 并提示用户重试。
-- 设置与可配置项
-  - 设置项：保存格式（JPG/PNG/自动），当选 PNG 时提示“拍摄当下更慢，建议后台转码”。
-  - PNG 转码压缩等级（1–3）与分辨率（预设档位）可选。
 
-## Diagnostics：拍照实现现状检查（JPEG vs PNG）
-- 静态检索（代码层）
-  - 搜索关键字：ImageCapture、setCaptureMode、CAPTURE_MODE_MINIMIZE_LATENCY/MAXIMIZE_QUALITY
-  - 搜索保存路径：OutputFileOptions、MediaStore.Images.Media（JPEG 直写标志）
-  - 搜索管线迹象：ImageProxy、YuvToRgbConverter、Bitmap.compress(format=PNG)、FileOutputStream(".png")
-- 运行时验证（日志与耗时）
-  - 在 takePhoto/onImageSaved/onError 周围记录耗时与管线标记：
-    - Log：[Camera] captureStart、[Camera] saved(uri=..., ext=.jpg/.png)、duration=XXX ms
-    - Log：[Pipeline] path=JPEG(MediaStore) 或 path=YUV→Bitmap→PNG
-- 判定标准
-  - JPEG 直写：扩展名 .jpg、MediaStore Uri、CAPTURE_MODE_MINIMIZE_LATENCY；总时延≈0.8–1.5s
-  - PNG 管线：出现 Bitmap.compress PNG 或 libpng；总时延≈2–4s（设备依赖）
-- 快速检索命令
-  - Windows：findstr /s /i "ImageCapture CAPTURE_MODE OutputFileOptions ImageProxy Bitmap.compress PNG" *.kt *.java
-  - Git Bash：rg -n "ImageCapture|CAPTURE_MODE|OutputFileOptions|ImageProxy|Bitmap\.compress|PNG" app/src
-- 后续动作
-  - 若当前为 PNG 管线：按“PNG 拍摄提速方案”迁移或改为后台转码。
-  - 若为 JPEG 直写：确保 jpegQuality≈85–95，并兼容命名/上传逻辑的 .jpg。
+# 检查更新功能总结
 
-----------------------------
+## 功能概述
+新增的检查更新功能允许用户通过GitHub Releases API检查应用是否有新版本，支持自动下载和安装更新。
 
-下面是项目的“交接用”环境与目标机信息总结，便于在其他机器上编译运行与上线。
+## 代码结构
 
-开发环境与工具链
-- 项目类型：Android 应用（Kotlin + Jetpack Compose）
-- 构建系统与版本
-  - Gradle: 8.2（见 hia-inventory-app/gradle/wrapper/gradle-wrapper.properties）
-  - Android Gradle Plugin: 8.2.2（见 hia-inventory-app/build.gradle.kts）
-  
-构建与安装命令（当前验证通过）
-- Debug 构建（在 hia-inventory-app 目录下执行）：
-  - ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
-- 也可以使用项目自带 Gradle Wrapper：
-  - ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew --no-daemon assembleDebug
-- 安装 Debug APK 到设备（在 hia-inventory-app 目录下执行）：
-  - ./gradlew installDebug
-  - Kotlin: 1.9.23（见 hia-inventory-app/build.gradle.kts）
-  - JDK 要求：AGP 8.2 需 JDK 17（即使源/目标兼容设置为 1.8）
-  - Java 源/目标兼容：1.8（见 hia-inventory-app/app/build.gradle.kts）
-- Android SDK
-  - compileSdk: 34
-  - targetSdk: 33
-  - minSdk: 23（以上均见 hia-inventory-app/app/build.gradle.kts）
-- Compose
-  - Compose Compiler: 1.5.12
-  - Compose BOM: 2024.02.01（见 hia-inventory-app/app/build.gradle.kts）
-- 应用信息
-  - applicationId/namespace：com.example.hia
-  - versionName: 1.0.3，versionCode: 1（见 hia-inventory-app/app/build.gradle.kts）
-- 主要依赖
-  - Material3、Compose UI/Foundation、Navigation Compose 2.7.6
-  - CameraX 1.3.2、Coil 2.4.0、DataStore 1.0.0
-  - Apache Commons Net (FTP) 3.9.0、Google Material 1.12.0
+### 1. UpdateManager.kt - 核心更新管理类
+- **单例模式**: 使用`object UpdateManager`实现
+- **主要功能**:
+  - `checkForUpdates()`: 检查GitHub Releases API是否有新版本
+  - `downloadAndInstall()`: 下载APK并安装
+- **支持特性**:
+  - 断点续传
+  - 重试机制（最多5次，指数退避）
+  - 进度回调
+  - 详细的错误处理
 
-签名与发布
-- Release 签名通过环境变量配置（未设置则回落到 debug 签名）
-  - ANDROID_KEYSTORE_PATH、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD
-  - 见 build.gradle.kts
+### 2. SettingsScreen.kt - UI界面
+- 在"APP信息"部分添加"检查更新"按钮
+- 集成UpdateManager调用
+- 显示下载进度和结果反馈
 
-VS Code 集成与任务
-- 任务文件：.vscode/tasks.json（含 Build/Install/ADB/Git 相关任务）
-- 说明：任务使用“系统 Gradle”路径。Windows 下可改用项目包装器 gradlew.bat，或在 tasks.json 中配置本机 Gradle 可执行路径。
+### 3. AndroidManifest.xml - 权限配置
+- 添加`REQUEST_INSTALL_PACKAGES`权限（Android 8.0+必需）
+- 配置FileProvider用于安全共享APK文件
 
-Windows 下构建与安装（命令行）
-````bat
-:: 在工作区根目录：c:\Users\zen82746.LI\Desktop\hia
-:: Debug 构建
-.\hia-inventory-app\gradlew.bat -p ".\hia-inventory-app" assembleDebug
+### 4. file_paths.xml - FileProvider路径配置
+- 配置APK文件的存储路径
 
-:: 安装到已连接设备
-.\hia-inventory-app\gradlew.bat -p ".\hia-inventory-app" installDebug
+## 实现流程
 
-:: 列出设备
-adb devices
-````
+### 版本检查流程
+```
+用户点击"检查更新" → UpdateManager.checkForUpdates() → 
+调用GitHub API获取最新版本 → 比较版本号 → 
+返回UpdateResult（UpToDate/UpdateAvailable/Error）
+```
 
-运行时权限与平台行为
-- Manifest 权限（见 hia-inventory-app/app/src/main/AndroidManifest.xml）
-  - CAMERA、INTERNET
-  - READ_MEDIA_IMAGES（Android 13+）
-  - READ_EXTERNAL_STORAGE（≤ Android 12，maxSdkVersion=32）
-  - WRITE_EXTERNAL_STORAGE（≤ Android 9，10+ 使用 MediaStore）
-- 存储/媒体
-  - Android 10+ 使用 MediaStore 读写/删除图片（删除经 MediaStore.createDeleteRequest）
-  - 操作 DCIM/yyyyMMdd 目录；支持图片浏览与放大
-- FTP
-  - 设置页配置服务器、端口、账号、密码；DataStore 持久化；支持连接测试与目录上传
+### 下载安装流程
+```
+发现新版本 → UpdateManager.downloadAndInstall() → 
+下载APK（支持断点续传） → 验证文件完整性 → 
+通过FileProvider获取URI → 启动安装Intent
+```
 
-目标设备与环境
-- Android 6.0+（minSdk 23），推荐 Android 13（targetSdk 33，compile 34）
-- 需有后置摄像头、可用存储空间、网络连接（FTP）
-- 首次启动授予 CAMERA/存储 等权限；上传前在设置页测试 FTP 连接
+## 遇到的坑和解决方案
 
-交接与新机初始化清单
-- 安装 JDK 17、Android SDK 与 Platform Tools（adb）
-- 使用项目自带 gradlew.bat 或安装 Gradle 8.2
-- 如需发布签名版，在系统环境变量设置 ANDROID_KEYSTORE_* 四项
-- VS Code 中检查 tasks.json 的 Gradle/adb 路径是否符合本机
-- 首次运行后在设置页填写 FTP 信息并“测试连接”
+### 坑1: Android 8.0+安装未知来源应用权限
+**问题**: Android 8.0及以上版本需要`REQUEST_INSTALL_PACKAGES`权限，且需要用户手动授权。
 
-快速定位关键信息的文件
-- hia-inventory-app/build.gradle.kts（AGP、Kotlin、插件）
-- hia-inventory-app/app/build.gradle.kts（SDK 等级、Compose、依赖、版本、签名）
-- hia-inventory-app/gradle/wrapper/gradle-wrapper.properties（Gradle 版本）
-- hia-inventory-app/app/src/main/AndroidManifest.xml（权限/组件）
-- .vscode/tasks.json（构建/安装任务与工具路径）
+**解决方案**:
+1. 在AndroidManifest.xml中添加权限声明
+2. 在代码中检查`packageManager.canRequestPackageInstalls()`
+3. 在错误信息中提示用户需要授权
+4. 使用`ACTION_INSTALL_PACKAGE` Intent而不是`ACTION_VIEW`
+
+### 坑2: FileProvider权限问题
+**问题**: Android 7.0+禁止通过`file://` URI共享文件，必须使用FileProvider。
+
+**解决方案**:
+1. 配置FileProvider在AndroidManifest.xml中
+2. 创建file_paths.xml定义可共享的路径
+3. 根据Android版本使用不同的URI获取方式
+4. 添加`FLAG_GRANT_READ_URI_PERMISSION`权限
+
+### 坑3: GitHub API重定向和认证
+**问题**: GitHub API可能返回重定向，且某些网络环境可能限制访问。
+
+**解决方案**:
+1. 设置`instanceFollowRedirects = true`
+2. 添加User-Agent等请求头模拟浏览器
+3. 实现重试机制处理网络波动
+4. 详细的错误日志记录
+
+### 坑4: 断点续传实现
+**问题**: 大文件下载可能中断，需要支持断点续传。
+
+**解决方案**:
+1. 检查文件已下载大小，设置`Range`请求头
+2. 处理HTTP 206（Partial Content）响应
+3. 解析`Content-Range`头获取文件总大小
+4. 使用追加模式写入文件
+
+### 坑5: 安装Intent兼容性
+**问题**: 某些设备可能不支持`ACTION_INSTALL_PACKAGE`。
+
+**解决方案**:
+1. 先尝试`ACTION_INSTALL_PACKAGE`
+2. 检查是否有Activity可以处理该Intent
+3. 如果没有，回退到`ACTION_VIEW`
+4. 添加额外的Intent参数提高兼容性
+
+### 坑6: 版本号比较
+**问题**: 版本号格式可能为"v1.2.3"或"1.2.3"。
+
+**解决方案**:
+1. 实现`isNewerVersion()`函数
+2. 去除版本号前缀"v"或"V"
+3. 按"."分割为数字数组进行比较
+4. 处理不同长度版本号的比较
+
+### 坑7: 下载进度更新到UI
+**问题**: 在后台线程更新UI进度。
+
+**解决方案**:
+1. 使用`onProgress`回调函数
+2. 在UI线程中通过协程更新进度状态
+3. 避免频繁更新导致的性能问题
+
+### 坑8: 文件存储位置
+**问题**: Android不同版本的文件存储权限不同。
+
+**解决方案**:
+1. Android 10+使用app-specific目录
+2. Android 9及以下尝试使用公共Downloads目录
+3. 提供fallback到app外部存储目录
+
+## 关键特性总结
+1. **断点续传**: 支持HTTP Range请求，下载中断后可恢复
+2. **重试机制**: 网络错误时自动重试5次，使用指数退避
+3. **进度显示**: 实时更新下载进度到UI
+4. **兼容性处理**: 适配Android不同版本的安装权限和FileProvider
+5. **错误处理**: 详细的错误分类和用户友好的提示
+6. **版本比较**: 支持语义化版本号比较
+
+## 使用说明
+1. 在系统设置页面的"APP信息"部分点击"检查更新"按钮
+2. 如果有新版本，会自动开始下载并显示进度
+3. 下载完成后会弹出系统安装界面
+4. 用户需要手动确认安装
+5. 安装完成后应用会自动重启
+
+## 注意事项
+1. 需要网络连接才能检查更新
+2. Android 8.0+需要用户授权"安装未知应用"权限
+3. 下载过程中请保持网络稳定
+4. 建议在Wi-Fi环境下进行大版本更新
+
+## 测试验证
+1. 功能测试：检查更新按钮是否正常工作
+2. 网络测试：在不同网络环境下测试下载稳定性
+3. 兼容性测试：在不同Android版本上测试安装流程
+4. 错误处理测试：测试网络中断、权限不足等异常情况
+
+## 后续优化建议
+1. 添加后台静默下载选项
+2. 支持增量更新以减少下载量
+3. 添加更新日志显示功能
+4. 支持多版本回滚功能
+5. 添加更新失败后的手动安装指引
