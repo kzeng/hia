@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -161,6 +163,20 @@ private fun TaskButton(isRunning: Boolean, onClick: () -> Unit) {
             contentColor = content
         )
     ) {
-        Text(if (isRunning) "任务进行中..." else "开始任务")
+        if (isRunning) {
+            Icon(
+                imageVector = Icons.Filled.Stop,
+                contentDescription = "停止任务"
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("任务进行中...")
+        } else {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = "开始任务"
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("开始任务")
+        }
     }
 }

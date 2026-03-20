@@ -19,6 +19,7 @@ import com.example.hia.ui.theme.HiaInventoryAppTheme
 import com.example.hia.ui.screens.InventoryScreen
 import com.example.hia.ui.screens.PhotosScreen
 import com.example.hia.ui.screens.SettingsScreen
+import com.example.hia.ui.screens.TaskLogScreen
 import com.example.hia.TaskViewModel
 
 class MainActivity : ComponentActivity() {
