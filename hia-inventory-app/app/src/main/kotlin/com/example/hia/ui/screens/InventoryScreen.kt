@@ -57,6 +57,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import com.example.hia.ui.components.TopNavBar
+import com.example.hia.TaskViewModel
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.launch
@@ -71,7 +72,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 @Composable
-fun InventoryScreen(navController: NavHostController) {
+fun InventoryScreen(navController: NavHostController, taskViewModel: TaskViewModel) {
     var floor by remember { mutableStateOf(1) }
     var area by remember { mutableStateOf(1) }
     var shelf by remember { mutableStateOf(1) }
@@ -85,7 +86,7 @@ fun InventoryScreen(navController: NavHostController) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { TopNavBar(navController) }
+                title = { TopNavBar(navController, taskViewModel) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -128,7 +129,8 @@ fun InventoryScreen(navController: NavHostController) {
                 column = column,
                 point = point,
                 layer = layer,
-                snackbarHostState = snackbarHostState
+                snackbarHostState = snackbarHostState,
+                taskViewModel = taskViewModel
             )
         }
     }
@@ -218,7 +220,8 @@ private fun CameraPanel(
     column: Int,
     point: Int,
     layer: Int,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    taskViewModel: TaskViewModel
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -226,6 +229,8 @@ private fun CameraPanel(
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     val coroutineScope = rememberCoroutineScope()
+    val currentTask by taskViewModel.currentTask.collectAsState()
+    val isTaskRunning = currentTask != null
 
     var cameraGranted by remember {
         mutableStateOf(
@@ -310,6 +315,15 @@ private fun CameraPanel(
                     FloatingActionButton(
                         onClick = {
                             if (!cameraGranted || !writeGranted) return@FloatingActionButton
+                            if (!isTaskRunning) {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        message = "请先开始任务",
+                                        withDismissAction = true
+                                    )
+                                }
+                                return@FloatingActionButton
+                            }
                             val codePart = "%02d%02d%02d%02d%02d%d%02d".format(floor, area, shelf, face, column, point, layer)
                             val ts = (System.currentTimeMillis() / 1000).toString() // 10位秒时间戳
                             val filename = "$codePart-$ts.png"
@@ -330,6 +344,7 @@ private fun CameraPanel(
                                                         withDismissAction = true
                                                     )
                                                 }
+                                                taskViewModel.increasePhotoCountForCurrentTask()
                                             } else {
                                                 coroutineScope.launch {
                                                     snackbarHostState.showSnackbar(

@@ -42,6 +42,7 @@ import com.example.hia.UpdateResult
 import com.example.hia.UpdateManager
 import kotlinx.coroutines.Dispatchers
 import com.example.hia.ui.components.TopNavBar
+import com.example.hia.TaskViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
@@ -50,12 +51,12 @@ import kotlin.math.sqrt
 import java.util.Calendar
 
 @Composable
-fun SettingsScreen(navController: NavHostController) {
+fun SettingsScreen(navController: NavHostController, taskViewModel: TaskViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { TopNavBar(navController) }
+                title = { TopNavBar(navController, taskViewModel) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }

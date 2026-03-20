@@ -67,18 +67,19 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import com.example.hia.FtpPreferences
 import com.example.hia.FtpConfig
+import com.example.hia.TaskViewModel
 import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PhotosScreen(navController: NavHostController) {
+fun PhotosScreen(navController: NavHostController, taskViewModel: TaskViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { TopNavBar(navController) }
+                title = { TopNavBar(navController, taskViewModel) }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
