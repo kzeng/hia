@@ -27,15 +27,18 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -51,6 +54,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -399,6 +405,15 @@ private fun NumberStepper(
     range: IntRange,
     padTwoDigits: Boolean = true
 ) {
+    var showDialog by remember { mutableStateOf(false) }
+    var inputText by remember { mutableStateOf(value.toString()) }
+    val context = LocalContext.current
+    
+    // 当值改变时更新输入文本
+    LaunchedEffect(value) {
+        inputText = value.toString()
+    }
+    
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge)
@@ -413,13 +428,19 @@ private fun NumberStepper(
                         modifier = Modifier.size(26.dp)
                     )
                 }
+                
+                // 可点击的文本区域，用于手动输入
                 Text(
                     text = if (padTwoDigits) "%02d".format(value) else value.toString(),
                     fontSize = 21.sp,
-                    modifier = Modifier.width(54.dp),
+                    modifier = Modifier
+                        .clickable { showDialog = true }
+                        .width(54.dp),
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
+                
                 IconButton(
                     onClick = { if (value < range.last) onValueChange(value + 1) },
                     modifier = Modifier.size(42.dp)
@@ -432,6 +453,59 @@ private fun NumberStepper(
                 }
             }
         }
+    }
+    
+    // 数字输入对话框
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("输入$label") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { newText ->
+                            // 只允许数字输入
+                            if (newText.all { it.isDigit() } || newText.isEmpty()) {
+                                inputText = newText
+                            }
+                        },
+                        label = { Text("请输入${range.first}-${range.last}之间的数字") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = inputText.isNotEmpty() && 
+                                 (inputText.toIntOrNull() == null || 
+                                  inputText.toInt() !in range)
+                    )
+                    if (inputText.isNotEmpty() && inputText.toIntOrNull() == null) {
+                        Text("请输入有效的数字", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    } else if (inputText.isNotEmpty() && inputText.toInt() !in range) {
+                        Text("请输入${range.first}-${range.last}之间的数字", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newValue = inputText.toIntOrNull()
+                        if (newValue != null && newValue in range) {
+                            onValueChange(newValue)
+                            showDialog = false
+                        }
+                    },
+                    enabled = inputText.isNotEmpty() && 
+                             inputText.toIntOrNull() != null && 
+                             inputText.toInt() in range
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

@@ -198,7 +198,6 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
             } else {
                 val systemInfo = sys ?: SystemInfo("未知", "未知", "未知", "未知")
                 Text("CPU：${systemInfo.cpu}")
-                Text("RAM：${systemInfo.ram}")
                 Text("磁盘：${systemInfo.disk}")
                 // 移除“操作系统”显示
             }
@@ -210,7 +209,6 @@ private fun InfoPanel(modifier: Modifier = Modifier, snackbarHostState: Snackbar
             } else {
                 val mi = media ?: MediaInfo("未知", "未知", "未知")
                 Text("摄像头：${mi.cameraSummary}")
-                Text("屏幕尺寸：${mi.screenSize}")
                 Text("分辨率：${mi.resolution}")
             }
 
